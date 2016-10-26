@@ -1,0 +1,6 @@
+tmp/
+vendor/
+node_modules/
+composer.lock
+npm-debug.log
+config*

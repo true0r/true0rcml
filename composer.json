@@ -1,0 +1,11 @@
+{
+  "authors": [
+    {
+      "name": "Галайдюк Александр",
+      "email": "true0r@outlook.com"
+    }
+  ],
+  "require": {
+      "squizlabs/php_codesniffer": "^2.7"
+  }
+}

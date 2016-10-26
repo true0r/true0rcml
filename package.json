@@ -1,0 +1,11 @@
+{
+  "author": "Alexandr Galaydyuk",
+  "email": "true0r@outlook.com",
+  "private": true,
+  "scripts": {
+    "precommit": "./vendor/bin/phpcs"
+  },
+  "devDependencies": {
+    "husky": "^0.11.4"
+  }
+}

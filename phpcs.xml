@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<ruleset name="PHP_CodeSniffer">
+  <description>Setting</description>
+
+  <arg value="p"/>
+  <arg name="colors"/>
+  <arg name="report-width" value="auto"/>
+  <arg name="encoding" value="utf-8"/>
+
+  <file>./</file>
+
+  <!--not work-->
+  <!--<exclude-pattern>*/vendor/*</exclude-pattern>-->
+  <arg name="ignore" value="*/vendor/*,*/node_modules/*,*/tmp/*"/>
+
+  <rule ref="PSR2"/>
+
+  <rule ref="PSR2">
+    <!-- Retrocompatibility < 1.7 -->
+    <exclude name="PSR1.Classes.ClassDeclaration.MissingNamespace"/>
+    <!-- PS requires to include this code 'if (!defined('_PS_VERSION_')) exit;' in a file of a module -->
+    <!-- that violates this rule -->
+    <exclude name="PSR1.Files.SideEffects.FoundWithSymbols"/>
+  </rule>
+</ruleset>
