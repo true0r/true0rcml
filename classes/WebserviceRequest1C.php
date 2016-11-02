@@ -34,7 +34,7 @@ class WebserviceRequest1C
 
             if ('init' == $this->mode || 'checkauth' == $this->mode) {
                 $this->{'mode'.Tools::ucfirst($this->mode)}();
-            } elseif ($this->checkUploadedFile()) {
+            } elseif ($this->checkUploadedFile($param)) {
                 if (method_exists($this, $typeName = 'type'.Tools::ucfirst($this->type))) {
                     $this->$typeName();
                 }
@@ -73,26 +73,28 @@ class WebserviceRequest1C
 
     public function checkParam($param)
     {
-        foreach ($this->param as $keyParam) {
-            if (!isset($param[$keyParam]) || empty($param[$keyParam])) {
-                $this->error = "Не установлен {$keyParam} параметр запроса";
-            } elseif (!in_array($param[$keyParam], $this->param[$keyParam])) {
-                $this->error = "Не верное значение ({$param[$keyParam]}) для параметра ({$keyParam})"
-                    ." Возможные варианты: ".implode('|', $this->param[$keyParam]);
+        foreach ($this->param as $key => $val) {
+            if (!isset($param[$key]) || empty($param[$key])) {
+                $this->error = "Не установлен {$key} параметр запроса";
+            } elseif (!in_array($param[$key], $val)) {
+                $this->error = "Не верное значение ({$param[$key]}) для параметра ({$key})"
+                    ." Возможные варианты: ".implode('|', $val);
             }
         }
 
-        return empty($this->error) != true;
+        return empty($this->error);
     }
 
-    public function checkUploadedFile()
+    public function checkUploadedFile($param)
     {
         if (!isset($param['filename']) || empty($param['filename'])) {
             $this->error = "Не задано имя файла";
         } else {
             $filename = $param['filename'];
 
-            if ($_FILES[$filename]['error'] != UPLOAD_ERR_OK) {
+            if (!isset($_FILES) || !isset($_FILES[$filename])) {
+                $this->error = 'Файл не отправлен';
+            } elseif ($_FILES[$filename]['error'] != UPLOAD_ERR_OK) {
                 // todo Детальное описание ошибки
                 $this->error = "Ошибка загрузки";
             } elseif ($_FILES[$filename]['size'] == 0) {
@@ -102,14 +104,13 @@ class WebserviceRequest1C
             }
         }
 
-        return empty($this->error) != true;
+        return empty($this->error);
     }
 
     public function getResult()
     {
-        $status = empty($this->error) != true;
-        $content = $status == false ? "failure\n{$this->error}" :
-            empty($this->content) ? "success\n{$this->success}" : $this->content;
+        $content = !empty($this->error) ? "failure\n{$this->error}" :
+            (empty($this->content) ? "success\n{$this->success}" : $this->content);
 
         return $result = array(
             'type' => 'txt',
@@ -125,4 +126,3 @@ class WebserviceRequest1C
         );
     }
 }
-
