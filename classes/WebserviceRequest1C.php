@@ -47,14 +47,14 @@ class WebserviceRequest1C
     public function typeSale()
     {
         $this->error = "Функция обработки заказов на данный момент не реализованна";
-        unlink($_FILES['tmp_name']);
+//        unlink($_FILES['tmp_name']);
     }
     public function typeCatalog()
     {
         // todo hook for price product, sync othercurrencyprice module
 
         $this->success = "Импорт номенклатуры выполнен успешно";
-        unlink($_FILES['tmp_name']);
+//        unlink($_FILES['tmp_name']);
     }
 
     public function modeInit()
@@ -99,7 +99,7 @@ class WebserviceRequest1C
                 $this->error = "Ошибка загрузки";
             } elseif ($_FILES[$filename]['size'] == 0) {
                 $this->error = "Размер файла 0 byte, он не содержит онформации для импорта";
-            } elseif (!is_uploaded_file($_FILES[$filename])) {
+            } elseif (!is_uploaded_file($_FILES[$filename]['tmp_name'])) {
                 $this->error = "Попытка доступа к системным файлам. Файл существует, но не был загружен";
             }
         }
