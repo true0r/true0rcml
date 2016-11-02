@@ -7,9 +7,7 @@ class WebserviceRequest1C
     public $error;
     public $content;
 
-    public $type;
-    public $mode;
-    public $param = array(
+    public $defParam = array(
         'type' => array('catalog', 'sale'),
         'mode' => array('init', 'checkauth', 'import', 'file'),
     );
@@ -28,33 +26,34 @@ class WebserviceRequest1C
         if (!Module::isEnabled('true0r1C')) {
             $this->error = "Модуль интеграции с 1С:Предприятие отключен, "
                 ."необходимо его включить через админ PrestaShop в разделе модули";
-        } elseif ($this->checkParam($param)) {
-            $this->mode = Tools::strtolower($param['mode']);
-            $this->type = Tools::strtolower($param['type']);
+        } elseif ($this->checkParam($param, $inputXml)) {
+            $mode = Tools::strtolower($param['mode']);
+            $type = Tools::strtolower($param['type']);
 
-            if ('init' == $this->mode || 'checkauth' == $this->mode) {
-                $this->{'mode'.Tools::ucfirst($this->mode)}();
-            } elseif ($this->checkUploadedFile($param)) {
-                if (method_exists($this, $typeName = 'type'.Tools::ucfirst($this->type))) {
-                    $this->$typeName();
-                }
+            switch ($mode) {
+                case 'init':
+                case 'checkauth':
+                    $this->{'mode'.Tools::ucfirst($mode)}();
+                    break;
+                case 'import':
+                case 'file':
+                    if (method_exists($this, $methodName = 'type'.Tools::ucfirst($type))) {
+                        $this->$methodName($inputXml);
+                    } else {
+                        $this->error = "Тип {$methodName} операции на данный момент не поддерживается";
+                    }
+                    break;
             }
         }
 
         return $this->getResult();
     }
 
-    public function typeSale()
-    {
-        $this->error = "Функция обработки заказов на данный момент не реализованна";
-//        unlink($_FILES['tmp_name']);
-    }
     public function typeCatalog()
     {
         // todo hook for price product, sync othercurrencyprice module
 
         $this->success = "Импорт номенклатуры выполнен успешно";
-//        unlink($_FILES['tmp_name']);
     }
 
     public function modeInit()
@@ -71,9 +70,9 @@ class WebserviceRequest1C
         $this->success = "Аутентификация успешна";
     }
 
-    public function checkParam($param)
+    public function checkParam($param, $input)
     {
-        foreach ($this->param as $key => $val) {
+        foreach ($this->defParam as $key => $val) {
             if (!isset($param[$key]) || empty($param[$key])) {
                 $this->error = "Не установлен {$key} параметр запроса";
             } elseif (!in_array($param[$key], $val)) {
@@ -82,26 +81,10 @@ class WebserviceRequest1C
             }
         }
 
-        return empty($this->error);
-    }
-
-    public function checkUploadedFile($param)
-    {
-        if (!isset($param['filename']) || empty($param['filename'])) {
+        if ($input && (!isset($param['filename']) || empty($param['filename']))) {
             $this->error = "Не задано имя файла";
-        } else {
-            $filename = $param['filename'];
-
-            if (!isset($_FILES) || !isset($_FILES[$filename])) {
-                $this->error = 'Файл не отправлен';
-            } elseif ($_FILES[$filename]['error'] != UPLOAD_ERR_OK) {
-                // todo Детальное описание ошибки
-                $this->error = "Ошибка загрузки";
-            } elseif ($_FILES[$filename]['size'] == 0) {
-                $this->error = "Размер файла 0 byte, он не содержит онформации для импорта";
-            } elseif (!is_uploaded_file($_FILES[$filename]['tmp_name'])) {
-                $this->error = "Попытка доступа к системным файлам. Файл существует, но не был загружен";
-            }
+        } elseif ($input && !strlen($input)) {
+            $this->error = "Файл импорта пуст";
         }
 
         return empty($this->error);
