@@ -68,9 +68,9 @@ class WebserviceRequest1C
 
         $cacheDir = _PS_CACHE_DIR_.self::MODULE_NAME;
         $fileName = $this->param['filename'];
-        $path = realpath($cacheDir.DIRECTORY_SEPARATOR.basename($fileName)).DIRECTORY_SEPARATOR.$fileName;
+        $path = $cacheDir.DIRECTORY_SEPARATOR.$fileName;
 
-        if (false !== strpos($path, $cacheDir)) {
+        if (false !== strpos($fileName, '../')) {
             $this->error = "Попытка доступа к системным файлам";
 
         // unzip
@@ -102,7 +102,6 @@ class WebserviceRequest1C
     {
         // todo hook for price product, sync othercurrencyprice module
         // ?? при изменении каталога или другой сущности его GUID изменяется
-        // ?? содержит только изменения
 
 //        set_time_limit(0);
         $this->success = "Импорт номенклатуры выполнен успешно";
@@ -123,7 +122,7 @@ class WebserviceRequest1C
 
         $mode = $this->param['mode'];
         if (('file' === $mode || 'import' === $mode)
-            && !isset($this->param['filename']) || empty($this->param['filename'])) {
+            && (!isset($this->param['filename']) || empty($this->param['filename']))) {
             $this->error = 'Имя файла не задано';
         }
 
@@ -131,6 +130,8 @@ class WebserviceRequest1C
     }
     public function checkUploadedFile()
     {
+        // todo size
+
         if (is_null($this->file)) {
             $this->error = 'Файл не отправлен';
         } elseif (!strlen($this->file)) {
@@ -155,16 +156,16 @@ class WebserviceRequest1C
             if (is_dir($path)) {
                 $dir = dir($path);
                 while (false !== ($fileName = $dir->read())) {
-                    if ('.' != $fileName || '..' != $fileName) {
+                    if ('.' != $fileName && '..' != $fileName) {
                         if (!$this->remove($dir->path.DIRECTORY_SEPARATOR.$fileName)) {
                             return false;
                         }
                     }
                 }
                 $dir->close();
-                return !@rmdir($path) && file_exists($path);
+                return @rmdir($path) || !file_exists($path);
             } else {
-                return !@unlink($path) && file_exists($path);
+                return @unlink($path) || !file_exists($path);
             }
         } else {
             return true;
@@ -181,7 +182,7 @@ class WebserviceRequest1C
         while ($lastDirName != $dir) {
             array_unshift($dirs, $dir);
             $lastDirName = $dir;
-            $dir = dirname($path);
+            $dir = dirname($dir);
         }
 
         foreach ($dirs as $dir) {
