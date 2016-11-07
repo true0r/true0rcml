@@ -3,9 +3,9 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
-class True0r1C extends Module
+class True0rCML extends Module
 {
-    const NAME_CLASS_REQUEST = 'WebserviceRequest1C';
+    const NAME_CLASS_REQUEST = 'WebserviceRequestCML';
     protected $hooks = array();
 
     public function getContent()
@@ -95,7 +95,7 @@ class True0r1C extends Module
 
     public function __construct()
     {
-        $this->name = 'true0r1C';
+        $this->name = 'true0rcml';
         $this->tab = 'others';
         $this->version = '0.1.0';
         $this->author = 'Alexander Galaydyuk';

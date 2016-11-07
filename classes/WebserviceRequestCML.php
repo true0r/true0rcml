@@ -1,10 +1,10 @@
 <?php
 
-class WebserviceRequest1C
+class WebserviceRequestCML
 {
     protected static $instance;
 
-    const MODULE_NAME = 'true0r1c';
+    const MODULE_NAME = 'true0rcml';
 
     public $success;
     public $error;
