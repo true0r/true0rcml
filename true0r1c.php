@@ -165,9 +165,4 @@ class True0r1C extends Module
         }
         return true;
     }
-
-    public function getTableName($addPrefix = false)
-    {
-        return ($addPrefix ? _DB_PREFIX_ : '').Tools::strtolower(preg_replace('/([a-z])([A-Z])/', '$1_$2', __CLASS__));
-    }
 }
