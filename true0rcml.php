@@ -50,7 +50,7 @@ class True0rCML extends Module
 
     public function addWsKey()
     {
-        return Db::getInstance()->insert(
+        $dbStatus = Db::getInstance()->insert(
             WebserviceKey::$definition['table'],
             array(
                 'key' => Tools::strtoupper(Tools::passwdGen(32)),
@@ -61,6 +61,8 @@ class True0rCML extends Module
                 'description' => $this->description,
             )
         );
+        !$dbStatus && $this->_errors[] = $this->l('Cannot create webservice key for module');
+        return $dbStatus;
     }
     public function getWsKey()
     {
@@ -114,13 +116,30 @@ class True0rCML extends Module
     public function install()
     {
         $fileName = self::NAME_CLASS_REQUEST.'.php';
-        $classAdd = copy($this->getLocalPath().'classes/'.$fileName, _PS_CLASS_DIR_.'webservice/'.$fileName);
+        $pathModule = $this->getLocalPath().'classes/'.$fileName;
+        $pathClasses = _PS_CLASS_DIR_.'webservice/'.$fileName;
+
+        file_exists($pathClasses) && @unlink($pathClasses);
+        if (!@copy($pathModule, $pathClasses)) {
+            $this->_errors[] = sprintf($this->l('Не могу скопировать ксласс %s в папку classes/'), $fileName);
+            return false;
+        }
         PrestaShopAutoload::getInstance()->generateIndex();
 
+        $dbStatus = DB::getInstance()->execute(
+            'CREATE TABLE IF NOT EXISTS '._DB_PREFIX_.$this->name.' (
+                `id` int(10) unsigned NOT NULL,
+                `guid` VARCHAR(40) NOT NULL,
+                `hash` VARCHAR(32) NOT NULL,
+                PRIMARY KEY (`guid`)
+            ) ENGINE='._MYSQL_ENGINE_.' DEFAULT CHARSET=utf8'
+        );
+        !$dbStatus && $this->_errors[] = $this->l('Cannot create table for module');
+
         return (
-            $classAdd
+            $dbStatus
             && $this->addWsKey()
-            && $this->registerHooks()
+            && $this->registerHook($this->hooks)
             && parent::install()
         );
     }
@@ -128,41 +147,10 @@ class True0rCML extends Module
     {
         @unlink(_PS_CLASS_DIR_.'webservice/'.self::NAME_CLASS_REQUEST.'.php');
 
+        $this->delWsKey();
         return (
-            $this->delWsKey()
-            && $this->unregisterHooks()
-//            && Db::getInstance()->execute("DROP TABLE IF EXISTS {$this->getTableName()};")
+            Db::getInstance()->execute('DROP TABLE IF EXISTS '._DB_PREFIX_.$this->name)
             && parent::uninstall()
         );
-    }
-
-    protected function registerHooks()
-    {
-        // Проверить существование хука, убедится в совместимости версий ПО
-        foreach ($this->hooks as $hook) {
-            if ($alias = Hook::getRetroHookName($hook)) {
-                $hook = $alias;
-            }
-            if (!Hook::getIdByName($hook)) {
-                return false;
-            }
-
-
-            if (!$this->registerHook($hook)) {
-                $this->_errors[] = sprintf($this->l('Failed to install hook "%s"'), $hook);
-                return false;
-            }
-        }
-        return true;
-    }
-    protected function unregisterHooks()
-    {
-        foreach ($this->hooks as $hook) {
-            if (!$this->unregisterHook($hook)) {
-                $this->_errors[] = sprintf($this->l('Failed to uninstall hook "%s"'), $hook);
-                return false;
-            }
-        }
-        return true;
     }
 }
