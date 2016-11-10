@@ -127,7 +127,7 @@ class WebserviceRequestCML
             } else {
                 $version = (string) $xml['ВерсияСхемы'];
                 if (Tools::version_compare('2.05', $version, '<=')) {
-                    $this->$methodName($xml);
+                    $this->$methodName($xml) && $this->success = "Импорт выполнен успешно";
                 } else {
                     $this->error = "Версия ($version) схемы не поддерживается";
                 }
@@ -147,18 +147,17 @@ class WebserviceRequestCML
             if (isset($xml->Классификатор) && isset($xml->Классификатор->Группы)) {
                 $this->importCategory($xml->Классификатор->Группы);
             }
-        } catch (ImportCMLException $e) {
-            $this->error = $e->getMessage();
+        } catch (Exception $e) {
+            $this->error = "Импорт не удался из за ошибки : '{$e->getMessage()}'";
         }
-
-        $this->success = "Импорт номенклатуры выполнен успешно";
+        return empty($this->error);
     }
 
     /**
      * @param $groups SimpleXMLElement
-     * @param $prop array
+     * @param $property array
      */
-    public function importCategory($groups, $prop = array())
+    public function importCategory($groups, $property = array())
     {
         /** @var ImportCML $category */
         static $category;
@@ -168,7 +167,7 @@ class WebserviceRequestCML
         }
 
         foreach ($groups->children() as $group) {
-            $category->catchBall($group, $prop)->save();
+            $category->catchBall($group, $property)->save();
 
             // add child category
             if (isset($group->Группы)) {
@@ -331,27 +330,39 @@ abstract class ImportCML
     /** @var  ObjectModel Содержит целевой класс PS для импорта */
     public $hashEntityCML;
 
-    public $prop = array();
+    public $property = array();
 
     /**
      * @param SimpleXMLElement $xml
-     * @param array $prop
+     * @param array $property
      * @return $this
      */
-    public function catchBall($xml, $prop = array())
+    public function catchBall($xml, $property = array())
     {
         $map = array_merge($this->map, $this->mapCommon);
         foreach ($map as $key => $val) {
-            $this->prop[$key] = isset($xml->{$val}) ? (string) $xml->{$val} : '';
+            $this->property[$key] = isset($xml->{$val}) ? (string) $xml->{$val} : '';
         }
-        $this->prop = array_merge($this->prop, $prop);
-        $this->hashEntityCML = md5(implode('', $this->prop));
+        $this->property = array_merge($this->property, $property);
+        $this->hashEntityCML = md5(implode('', $this->property));
 
         if (!in_array($this->targetClassName, self::$initialized)) {
             $this->initDefaultObj();
             self::$initialized[] = $this->targetClassName;
         }
         return $this;
+    }
+
+    public function getCalcProperty()
+    {
+        $linkRewrite = Tools::str2url($this->property['name']);
+        if (!Validate::isLinkRewrite($linkRewrite)) {
+            $linkRewrite = 'friendly-url-autogeneration-failed';
+//           $this->warnings[] = 'URL rewriting failed to auto-generate a friendly URL for: {$this->property['name']}';
+        }
+        return array(
+            'link_rewrite' => $linkRewrite,
+        );
     }
 
     public static function getId($guid, $cache = false)
@@ -378,7 +389,12 @@ abstract class ImportCML
 
     public function save()
     {
-        if ($this->id = $this->getId($this->prop['guid'], $this->cache)) {
+        if (!isset($this->property)) {
+            throw new ImportCMLException('Сперва выполните инициализацию целевого объекта');
+        }
+        $this->property = array_merge($this->property, $this->getCalcProperty());
+
+        if ($this->id = $this->getId($this->property['guid'], $this->cache)) {
             if ($this->needUpd()) {
                 return $this->update() && $this->updateEntityCML();
             } else {
@@ -392,9 +408,9 @@ abstract class ImportCML
     {
         /** @var ObjectModel $targetClass */
         $targetClass = new $this->targetClassName();
-        foreach ($this->prop as $key => $val) {
-            property_exists($targetClass, $key) && $targetClass->{$key} = $val;
-        }
+        // set id_lang and current property
+        $targetClass->hydrate($this->property, Configuration::get('PS_LANG_DEFAULT'));
+
         if ($targetClass->save()) {
             $this->id = $targetClass->id;
             return true;
@@ -410,7 +426,7 @@ abstract class ImportCML
     {
         return DB::getInstance()->update(
             self::$table,
-            array('hash' => $this->hashEntityCML), "guid = '{$this->prop['guid']}'"
+            array('hash' => $this->hashEntityCML), "guid = '{$this->property['guid']}'"
         );
     }
     public function addEntityCML()
@@ -418,10 +434,10 @@ abstract class ImportCML
         if (!isset($this->id)) {
             throw new ImportCMLException('Id is not set for entity CML');
         }
-        $this->cache && Cache::store($this->prop['guid'], $this->id);
+        $this->cache && Cache::store($this->property['guid'], $this->id);
         return DB::getInstance()->insert(
             self::$table,
-            array('id' => $this->id, 'guid' => $this->prop['guid'], 'hash' => $this->hashEntityCML),
+            array('id' => $this->id, 'guid' => $this->property['guid'], 'hash' => $this->hashEntityCML),
             false,
             false
         );
@@ -433,7 +449,7 @@ abstract class ImportCML
             (new DbQuery())
                 ->select('1')
                 ->from(self::$table)
-                ->where("guid = '{$this->prop['guid']}' AND hash = '{$this->hashEntityCML}'")
+                ->where("guid = '{$this->property['guid']}' AND hash = '{$this->hashEntityCML}'")
         );
     }
 }
@@ -453,7 +469,6 @@ class CategoryImportCML extends ImportCML
         $catParent = new Category($idParent);
 
         return array(
-            'active' => true,
             'id_parent' => $idParent,
             'level_depth' => $catParent->level_depth + 1,
         );
@@ -494,7 +509,7 @@ class HackObjectModel extends ObjectModel
     public function __construct($defaultValue, $className)
     {
         // init self::$loaded_classes[$className]
-        new $className();
+        !array_key_exists($className, self::$loaded_classes) && new $className();
 
         foreach ($defaultValue as $key => $value) {
             array_key_exists($key, self::$loaded_classes[$className])
@@ -505,5 +520,4 @@ class HackObjectModel extends ObjectModel
 
 class ImportCMLException extends Exception
 {
-
 }
