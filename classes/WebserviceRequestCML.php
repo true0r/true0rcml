@@ -118,18 +118,30 @@ class WebserviceRequestCML
             $path = $this->uploadDir.$this->param['filename'];
             libxml_use_internal_errors(true);
 
-            $xml = simplexml_load_file($path);
-            if (!$xml) {
+            $xmlReader = new XMLReader();
+
+            if (!$xmlReader->open($path)) {
                 $this->error = "Ошибка загрузки XML";
                 foreach (libxml_get_errors() as $error) {
                     $this->error .= ' '.$error->message;
                 }
             } else {
-                $version = (string) $xml['ВерсияСхемы'];
-                if (Tools::version_compare('2.05', $version, '<=')) {
-                    $this->$methodName($xml) && $this->success = "Импорт выполнен успешно";
+                if (!$xmlReader->next('КоммерческаяИнформация')) {
+                    $this->error = "XML файл не имеет узла 'КоммерческаяИнформация', что не соответствует CommerceML 2";
                 } else {
-                    $this->error = "Версия ($version) схемы не поддерживается";
+                    $version = $xmlReader->getAttribute('ВерсияСхемы');
+                    if (Tools::version_compare('2.05', $version, '<=')) {
+                        $startTime = microtime(true);
+                        if ($this->$methodName($xmlReader)) {
+                            $stats =
+                                "Peak memory: ".(memory_get_peak_usage(true) / 1024 / 1024)
+                                ."MB Time: ".(microtime(true) - $startTime);
+                            $this->success = "Импорт выполнен успешно ".$stats;
+                        }
+                        $xmlReader->close();
+                    } else {
+                        $this->error = "Версия ($version) схемы не поддерживается";
+                    }
                 }
             }
         } else {
@@ -137,16 +149,33 @@ class WebserviceRequestCML
         }
     }
     /**
-     * @param $xml SimpleXMLElement
+     * @param $xmlReader XMLReader
      * @return bool
      */
-    public function importCatalog($xml)
+    public function importCatalog($xmlReader)
     {
         // todo hook for price product, sync othercurrencyprice module
         // ?? при изменении каталога или другой сущности его GUID изменяется
         try {
-            if (isset($xml->Классификатор) && isset($xml->Классификатор->Группы)) {
-                $this->importCategory($xml->Классификатор->Группы);
+            while ($xmlReader->read()) {
+                if ($xmlReader->nodeType != XMLReader::ELEMENT) {
+                    continue;
+                }
+                $localName = $xmlReader->localName;
+                switch ($localName) {
+                    case 'Классификатор':
+                        $xmlSimple = new SimpleXMLElement($xmlReader->readOuterXml());
+                        if (isset($xmlSimple->Группы)) {
+                            $this->importCategories($xmlSimple->Группы);
+                        }
+                        $xmlReader->next();
+                        break;
+                    case 'Товар':
+                        $xmlSimple = new SimpleXMLElement($xmlReader->readOuterXml());
+                        $this->importProduct($xmlSimple);
+                        $xmlReader->next();
+                        break;
+                }
             }
         } catch (Exception $e) {
             $this->error = "Импорт не удался из за ошибки : '{$e->getMessage()}'";
@@ -155,19 +184,13 @@ class WebserviceRequestCML
     }
 
     /**
-     * @param $groups SimpleXMLElement
+     * @param $xml SimpleXMLElement
      * @param $property array
      */
-    public function importCategory($groups, $property = array())
+    public function importCategories($xml, $property = array())
     {
-        /** @var ImportCML $category */
-        static $category;
-
-        if (!isset($category)) {
-            $category = new CategoryImportCML();
-        }
-
-        foreach ($groups->children() as $group) {
+        $category = CategoryImportCML::getInstance();
+        foreach ($xml->children() as $group) {
             $category->catchBall($group, $property)->save();
 
             // add child category
@@ -179,7 +202,7 @@ class WebserviceRequestCML
                         ->from(Category::$definition['table'])
                         ->where(Category::$definition['primary'].'='.$idParent)
                 );
-                $this->importCategory(
+                $this->importCategories(
                     $group->Группы,
                     array(
                         'id_parent' => $idParent,
@@ -189,6 +212,13 @@ class WebserviceRequestCML
             }
         }
     }
+    /**
+     * @param $xml SimpleXMLElement
+     */
+    public function importProduct($xml)
+    {
+        ProductImportCML::getInstance()->catchBall($xml);
+    }
 
     public function checkParam()
     {
@@ -196,10 +226,10 @@ class WebserviceRequestCML
 
         foreach ($this->defParam as $key => $val) {
             if (!isset($this->param[$key]) || empty($this->param[$key])) {
-                $this->error = "Не установлен {$key} параметр запроса";
+                $this->error = "Не установлен $key параметр запроса";
             } elseif (!in_array($this->param[$key], $val)) {
-                $this->error = "Не верное значение ({$this->param[$key]}) для параметра ({$key})"
-                    . " Возможные варианты: " . implode('|', $val);
+                $this->error = "Не верное значение ({$this->param[$key]}) для параметра ($key)"
+                    ." Возможные варианты: ".implode('|', $val);
             }
         }
 
@@ -312,6 +342,8 @@ class WebserviceRequestCML
 // CommerceML
 abstract class ImportCML
 {
+    /** @var  ImportCML */
+    protected static $instance;
     public static $table = WebserviceRequestCML::MODULE_NAME;
     public static $initialized = array();
 
@@ -332,6 +364,18 @@ abstract class ImportCML
     public $hashEntityCML;
 
     public $property = array();
+
+    protected function __construct()
+    {
+    }
+    public static function getInstance()
+    {
+        if (!isset(static::$instance)) {
+            static::$instance = new static();
+        }
+
+        return static::$instance;
+    }
 
     /**
      * @param SimpleXMLElement $xml
@@ -482,6 +526,7 @@ abstract class ImportCML
 
 class CategoryImportCML extends ImportCML
 {
+    protected static $instance;
     public $targetClassName = 'Category';
 
     public $map = array(
@@ -503,6 +548,7 @@ class CategoryImportCML extends ImportCML
 
 class ProductImportCML extends ImportCML
 {
+    protected static $instance;
     public $targetClassName = 'Product';
     public $cache = false;
 
@@ -518,6 +564,7 @@ class ProductImportCML extends ImportCML
 
 class ManufacturerImportCML extends ImportCML
 {
+    protected static $instance;
     public $targetClassName = 'Manufacturer';
 
     public $map = array(
