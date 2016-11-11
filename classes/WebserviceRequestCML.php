@@ -14,7 +14,7 @@ class WebserviceRequestCML
     public $file;
 
     public $logger;
-    public $cacheDir;
+    public $uploadDir;
 
     public $defParam = array(
         'type' => array('catalog', 'sale'),
@@ -32,7 +32,7 @@ class WebserviceRequestCML
 
     public function __construct()
     {
-        $this->cacheDir = _PS_CACHE_DIR_.self::MODULE_NAME.DIRECTORY_SEPARATOR;
+        $this->uploadDir = _PS_UPLOAD_DIR_.self::MODULE_NAME.DIRECTORY_SEPARATOR;
         $this->logger = new FileLogger(FileLogger::DEBUG);
         $this->logger->setFilename(_PS_MODULE_DIR_.self::MODULE_NAME.DIRECTORY_SEPARATOR.'log.txt');
     }
@@ -85,7 +85,7 @@ class WebserviceRequestCML
         }
 
         $fileName = $this->param['filename'];
-        $path = $this->cacheDir.$fileName;
+        $path = $this->uploadDir.$fileName;
 
         if (false !== strpos($fileName, '../')) {
             $this->error = "Попытка доступа к системным файлам";
@@ -94,7 +94,7 @@ class WebserviceRequestCML
         } elseif ($this->saveFile($path)
             && 'zip' === pathinfo($fileName, PATHINFO_EXTENSION)) {
             if (true === ($zip = new ZipArchive())->open($path)) {
-                if (!$zip->extractTo($this->cacheDir)) {
+                if (!$zip->extractTo($this->uploadDir)) {
                     $this->error = "Ошибка распаковки zip архива $path";
                 } else {
                     $this->success = "Zip архив загружен и распакован $path";
@@ -115,7 +115,7 @@ class WebserviceRequestCML
         $methodName = 'import'.Tools::ucfirst($type);
 
         if (method_exists($this, $methodName)) {
-            $path = $this->cacheDir.$this->param['filename'];
+            $path = $this->uploadDir.$this->param['filename'];
             libxml_use_internal_errors(true);
 
             $xml = simplexml_load_file($path);
@@ -138,6 +138,7 @@ class WebserviceRequestCML
     }
     /**
      * @param $xml SimpleXMLElement
+     * @return bool
      */
     public function importCatalog($xml)
     {
@@ -225,8 +226,8 @@ class WebserviceRequestCML
 
     public function cleanCache()
     {
-        if (!$this->remove($this->cacheDir)) {
-            $this->error = "Не могу очистить папку с кешем {$this->cacheDir}";
+        if (!$this->remove($this->uploadDir)) {
+            $this->error = "Не могу очистить папку с кешем {$this->uploadDir}";
         }
 
         return empty($this->error);
@@ -339,6 +340,9 @@ abstract class ImportCML
      */
     public function catchBall($xml, $property = array())
     {
+        $this->id = null;
+        $this->property = array();
+
         $map = array_merge($this->map, $this->mapCommon);
         foreach ($map as $key => $val) {
             $this->property[$key] = isset($xml->{$val}) ? (string) $xml->{$val} : '';
@@ -389,37 +393,59 @@ abstract class ImportCML
 
     public function save()
     {
+        static $idLangDefault;
+
+        if (!isset($idLangDefault)) {
+            $idLangDefault = (int) Configuration::get('PS_LANG_DEFAULT');
+        }
         if (!isset($this->property)) {
             throw new ImportCMLException('Сперва выполните инициализацию целевого объекта');
         }
         $this->property = array_merge($this->property, $this->getCalcProperty());
 
         if ($this->id = $this->getId($this->property['guid'], $this->cache)) {
-            if ($this->needUpd()) {
-                return $this->update() && $this->updateEntityCML();
-            } else {
+            if (!$this->needUpd()) {
                 return true;
             }
+            /** @var ObjectModel $targetClass */
+            $targetClass = new $this->targetClassName($this->id);
+            $defFields = $targetClass::$definition['fields'];
+            $fieldsToUpdate = array();
+            foreach ($this->property as $key => $value) {
+                if (array_key_exists($key, $defFields)) {
+                    if (isset($targetClass->{$key})) {
+                        // field lang
+                        if (is_array($targetClass->{$key})) {
+                            if (isset($targetClass->{$key}[$idLangDefault])) {
+                                if ($targetClass->{$key}[$idLangDefault] == $value) {
+                                    continue;
+                                }
+                            }
+                        } elseif ($targetClass->{$key} == $value) {
+                            continue;
+                        }
+                    }
+                    $fieldsToUpdate[$key] = true;
+                }
+            }
+            $targetClass->setFieldsToUpdate($fieldsToUpdate);
         } else {
-            return $this->add() && $this->addEntityCML();
+            /** @var ObjectModel $targetClass */
+            $targetClass = new $this->targetClassName();
         }
-    }
-    public function add()
-    {
-        /** @var ObjectModel $targetClass */
-        $targetClass = new $this->targetClassName();
-        // set id_lang and current property
-        $targetClass->hydrate($this->property, Configuration::get('PS_LANG_DEFAULT'));
-
+        // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
+        $targetClass->hydrate($this->property, $idLangDefault);
         if ($targetClass->save()) {
-            $this->id = $targetClass->id;
+            if ($this->id) {
+                $this->updateEntityCML();
+            } else {
+                $this->id = $targetClass->id;
+                $this->addEntityCML();
+            }
             return true;
         } else {
             return false;
         }
-    }
-    public function update()
-    {
     }
 
     public function updateEntityCML()
