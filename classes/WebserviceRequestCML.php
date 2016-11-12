@@ -185,13 +185,13 @@ class WebserviceRequestCML
 
     /**
      * @param $xml SimpleXMLElement
-     * @param $property array
+     * @param $fields array
      */
-    public function importCategories($xml, $property = array())
+    public function importCategories($xml, $fields = array())
     {
         $category = CategoryImportCML::getInstance();
         foreach ($xml->children() as $group) {
-            $category->catchBall($group, $property)->save();
+            $category->catchBall($group, $fields)->save();
 
             // add child category
             if (isset($group->Группы)) {
@@ -344,6 +344,7 @@ abstract class ImportCML
 {
     /** @var  ImportCML */
     protected static $instance;
+    public static $idLangDefault;
     public static $table = WebserviceRequestCML::MODULE_NAME;
     public static $initialized = array();
 
@@ -354,19 +355,19 @@ abstract class ImportCML
     public $cache = true;
 
     public $map = array();
-    public $mapCommon = array(
-        'guid' => 'Ид',
-    );
 
     public $id;
+    public $guid;
+    public $xml;
     public $targetClassName;
     /** @var  ObjectModel Содержит целевой класс PS для импорта */
     public $hashEntityCML;
 
-    public $property = array();
+    public $fields = array();
 
     protected function __construct()
     {
+        self::$idLangDefault = (int) Configuration::get('PS_LANG_DEFAULT');
     }
     public static function getInstance()
     {
@@ -379,20 +380,23 @@ abstract class ImportCML
 
     /**
      * @param SimpleXMLElement $xml
-     * @param array $property
+     * @param array $fields
      * @return $this
      */
-    public function catchBall($xml, $property = array())
+    public function catchBall($xml, $fields = array())
     {
         $this->id = null;
-        $this->property = array();
-
-        $map = array_merge($this->map, $this->mapCommon);
-        foreach ($map as $key => $val) {
-            $this->property[$key] = isset($xml->{$val}) ? (string) $xml->{$val} : '';
+        $this->guid = null;
+        $this->xml = $xml;
+        $this->fields = array();
+        if (isset($xml->Ид)) {
+            $this->guid = (string) $xml->Ид;
         }
-        $this->property = array_merge($this->property, $property);
-        $this->hashEntityCML = md5(implode('', $this->property));
+
+        foreach ($this->map as $key => $val) {
+            $this->fields[$key] = isset($xml->{$val}) ? (string) $xml->{$val} : '';
+        }
+        $this->fields = array_merge($this->fields, $fields);
 
         if (!in_array($this->targetClassName, self::$initialized)) {
             $this->initDefaultObj();
@@ -403,17 +407,17 @@ abstract class ImportCML
 
     public function getCalcProperty()
     {
-        $linkRewrite = Tools::str2url($this->property['name']);
+        $linkRewrite = Tools::str2url($this->fields['name']);
         if (!Validate::isLinkRewrite($linkRewrite)) {
-            $linkRewrite = 'friendly-url-autogeneration-failed';
-//           $this->warnings[] = 'URL rewriting failed to auto-generate a friendly URL for: {$this->property['name']}';
+            $linkRewrite = 'friendly-url-auto-generation-failed';
+//           $this->warnings[] = 'URL rewriting failed to auto-generate a friendly URL for: {$this->fields['name']}';
         }
         return array(
             'link_rewrite' => $linkRewrite,
         );
     }
 
-    public static function getId($guid, $cache = false)
+    public static function getIdByGuid($guid, $cache = false)
     {
         if ($cache && Cache::isStored($guid)) {
             return Cache::retrieve($guid);
@@ -437,17 +441,13 @@ abstract class ImportCML
 
     public function save()
     {
-        static $idLangDefault;
-
-        if (!isset($idLangDefault)) {
-            $idLangDefault = (int) Configuration::get('PS_LANG_DEFAULT');
-        }
-        if (!isset($this->property)) {
+        if (!isset($this->fields) || !count($this->fields)) {
             throw new ImportCMLException('Сперва выполните инициализацию целевого объекта');
         }
-        $this->property = array_merge($this->property, $this->getCalcProperty());
+        $this->fields = array_merge($this->fields, $this->getCalcProperty());
+        $this->setHashEntityCML();
 
-        if ($this->id = $this->getId($this->property['guid'], $this->cache)) {
+        if ($this->id = $this->getIdByGuid($this->guid, $this->cache)) {
             if (!$this->needUpd()) {
                 return true;
             }
@@ -455,13 +455,13 @@ abstract class ImportCML
             $targetClass = new $this->targetClassName($this->id);
             $defFields = $targetClass::$definition['fields'];
             $fieldsToUpdate = array();
-            foreach ($this->property as $key => $value) {
+            foreach ($this->fields as $key => $value) {
                 if (array_key_exists($key, $defFields)) {
                     if (isset($targetClass->{$key})) {
                         // field lang
                         if (is_array($targetClass->{$key})) {
-                            if (isset($targetClass->{$key}[$idLangDefault])) {
-                                if ($targetClass->{$key}[$idLangDefault] == $value) {
+                            if (isset($targetClass->{$key}[self::$idLangDefault])) {
+                                if ($targetClass->{$key}[self::$idLangDefault] == $value) {
                                     continue;
                                 }
                             }
@@ -472,21 +472,24 @@ abstract class ImportCML
                     $fieldsToUpdate[$key] = true;
                 }
             }
+            // Возможно хеш изменился из за изменений в алгоритме обработки свойств, но целевой обьект нет
+            if (count($fieldsToUpdate) == 0) {
+                return $this->updateEntityCML();
+            }
             $targetClass->setFieldsToUpdate($fieldsToUpdate);
         } else {
             /** @var ObjectModel $targetClass */
             $targetClass = new $this->targetClassName();
         }
         // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
-        $targetClass->hydrate($this->property, $idLangDefault);
+        $targetClass->hydrate($this->fields, self::$idLangDefault);
         if ($targetClass->save()) {
             if ($this->id) {
-                $this->updateEntityCML();
+                return $this->updateEntityCML();
             } else {
                 $this->id = $targetClass->id;
-                $this->addEntityCML();
+                return $this->addEntityCML();
             }
-            return true;
         } else {
             return false;
         }
@@ -496,7 +499,7 @@ abstract class ImportCML
     {
         return DB::getInstance()->update(
             self::$table,
-            array('hash' => $this->hashEntityCML), "guid = '{$this->property['guid']}'"
+            array('hash' => $this->hashEntityCML), "guid = '{$this->guid}'"
         );
     }
     public function addEntityCML()
@@ -504,13 +507,23 @@ abstract class ImportCML
         if (!isset($this->id)) {
             throw new ImportCMLException('Id is not set for entity CML');
         }
-        $this->cache && Cache::store($this->property['guid'], $this->id);
+        $this->cache && Cache::store($this->guid, $this->id);
         return DB::getInstance()->insert(
             self::$table,
-            array('id' => $this->id, 'guid' => $this->property['guid'], 'hash' => $this->hashEntityCML),
+            array('id' => $this->id, 'guid' => $this->guid, 'hash' => $this->hashEntityCML),
             false,
             false
         );
+    }
+
+    public function setHashEntityCML()
+    {
+        $toHash = array_filter($this->fields, function ($key) {
+            return array_key_exists($key, $this->targetClassName::$definition['fields']);
+        }, ARRAY_FILTER_USE_KEY);
+        ksort($toHash);
+
+        $this->hashEntityCML = md5(implode('', $toHash));
     }
 
     public function needUpd()
@@ -519,7 +532,7 @@ abstract class ImportCML
             (new DbQuery())
                 ->select('1')
                 ->from(self::$table)
-                ->where("guid = '{$this->property['guid']}' AND hash = '{$this->hashEntityCML}'")
+                ->where("guid = '{$this->guid}' AND hash = '{$this->hashEntityCML}'")
         );
     }
 }
@@ -553,12 +566,20 @@ class ProductImportCML extends ImportCML
     public $cache = false;
 
     public $map = array(
-
+        'name' => 'Наименование',
+        'description' => 'Описание',
+//        'description_short' => '',
     );
 
     public function getDefaultValues()
     {
-        // TODO: Implement getDefaultValues() method.
+        return array();
+    }
+    public function getCalcProperty()
+    {
+        $fields = array();
+
+        return array_merge($fields, parent::getCalcProperty());
     }
 }
 
