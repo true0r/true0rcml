@@ -405,18 +405,6 @@ abstract class ImportCML
         return $this;
     }
 
-    public function getCalcProperty()
-    {
-        $linkRewrite = Tools::str2url($this->fields['name']);
-        if (!Validate::isLinkRewrite($linkRewrite)) {
-            $linkRewrite = 'friendly-url-auto-generation-failed';
-//           $this->warnings[] = 'URL rewriting failed to auto-generate a friendly URL for: {$this->fields['name']}';
-        }
-        return array(
-            'link_rewrite' => $linkRewrite,
-        );
-    }
-
     public static function getIdByGuid($guid, $cache = false)
     {
         if ($cache && Cache::isStored($guid)) {
@@ -435,17 +423,36 @@ abstract class ImportCML
 
     public function initDefaultObj()
     {
-        new HackObjectModel($this->getDefaultValues(), $this->targetClassName);
+        if (count($defaultFields = $this->getDefaultFields()) > 0) {
+            new HackObjectModel($defaultFields, $this->targetClassName);
+        }
     }
-    abstract public function getDefaultValues();
+
+    public function getDefaultFields()
+    {
+        return array();
+    }
+    public function getCalcFields()
+    {
+        $linkRewrite = Tools::str2url($this->fields['name']);
+        if (!Validate::isLinkRewrite($linkRewrite)) {
+            $linkRewrite = 'friendly-url-auto-generation-failed';
+//           $this->warnings[] = 'URL rewriting failed to auto-generate a friendly URL for: {$this->fields['name']}';
+        }
+        return array(
+            'link_rewrite' => $linkRewrite,
+        );
+    }
 
     public function save()
     {
         if (!isset($this->fields) || !count($this->fields)) {
             throw new ImportCMLException('Сперва выполните инициализацию целевого объекта');
         }
-        $this->fields = array_merge($this->fields, $this->getCalcProperty());
-        $this->setHashEntityCML();
+        $this->fields = array_merge($this->fields, $this->getCalcFields());
+        // Убрать случайно попавшие поля, предотвратив случайное обновление и неправльный хеш
+        $this->clearFields();
+        $this->hashEntityCML = md5(implode('', ksort($this->fields)));
 
         if ($this->id = $this->getIdByGuid($this->guid, $this->cache)) {
             if (!$this->needUpd()) {
@@ -456,18 +463,16 @@ abstract class ImportCML
             $defFields = $targetClass::$definition['fields'];
             $fieldsToUpdate = array();
             foreach ($this->fields as $key => $value) {
-                if (array_key_exists($key, $defFields)) {
-                    if (isset($targetClass->{$key})) {
-                        // field lang
-                        if (is_array($targetClass->{$key})) {
-                            if (isset($targetClass->{$key}[self::$idLangDefault])) {
-                                if ($targetClass->{$key}[self::$idLangDefault] == $value) {
-                                    continue;
-                                }
+                if (isset($targetClass->{$key})) {
+                    // field lang
+                    if (is_array($targetClass->{$key})) {
+                        if (isset($targetClass->{$key}[self::$idLangDefault])) {
+                            if ($targetClass->{$key}[self::$idLangDefault] == $value) {
+                                continue;
                             }
-                        } elseif ($targetClass->{$key} == $value) {
-                            continue;
                         }
+                    } elseif ($targetClass->{$key} == $value) {
+                        continue;
                     }
                     $fieldsToUpdate[$key] = true;
                 }
@@ -516,14 +521,11 @@ abstract class ImportCML
         );
     }
 
-    public function setHashEntityCML()
+    public function clearFields()
     {
-        $toHash = array_filter($this->fields, function ($key) {
+        $this->fields = array_filter($this->fields, function ($key) {
             return array_key_exists($key, $this->targetClassName::$definition['fields']);
         }, ARRAY_FILTER_USE_KEY);
-        ksort($toHash);
-
-        $this->hashEntityCML = md5(implode('', $toHash));
     }
 
     public function needUpd()
@@ -547,7 +549,7 @@ class CategoryImportCML extends ImportCML
         'description' => 'Описание',
     );
 
-    public function getDefaultValues()
+    public function getDefaultFields()
     {
         $idParent = Configuration::get('PS_HOME_CATEGORY');
         $catParent = new Category($idParent);
@@ -571,10 +573,6 @@ class ProductImportCML extends ImportCML
 //        'description_short' => '',
     );
 
-    public function getDefaultValues()
-    {
-        return array();
-    }
     public function getCalcProperty()
     {
         $fields = array();
@@ -591,11 +589,6 @@ class ManufacturerImportCML extends ImportCML
     public $map = array(
 
     );
-
-    public function getDefaultValues()
-    {
-        // TODO: Implement getDefaultValues() method.
-    }
 }
 
 class HackObjectModel extends ObjectModel
