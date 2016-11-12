@@ -1,4 +1,7 @@
 <?php
+
+// todo Импорт вручную через UI PS
+
 if (!defined('_PS_VERSION_')) {
     exit;
 }
