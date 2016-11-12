@@ -1,5 +1,8 @@
 <?php
 
+// todo hook for price product, sync othercurrencyprice module
+// ?? при изменении каталога или другой сущности его GUID изменяется
+
 class WebserviceRequestCML
 {
     protected static $instance;
@@ -110,120 +113,49 @@ class WebserviceRequestCML
     {
         @set_time_limit(0);
         @ini_set('max_execution_time', '0');
+        libxml_use_internal_errors(true);
 
-        $type = $this->param['type'];
-        $method = 'import'.Tools::ucfirst($type);
+        $xmlReader = new XMLReader();
 
-        if (method_exists($this, $method)) {
-            $path = $this->uploadDir.$this->param['filename'];
-            libxml_use_internal_errors(true);
-
-            $xmlReader = new XMLReader();
-
-            if (!$xmlReader->open($path)) {
-                $this->error = "Ошибка загрузки XML";
-                foreach (libxml_get_errors() as $error) {
-                    $this->error .= ' '.$error->message;
-                }
-            } else {
-                if (!$xmlReader->next('КоммерческаяИнформация')) {
-                    $this->error = "XML файл не имеет узла 'КоммерческаяИнформация', что не соответствует CommerceML 2";
-                } else {
-                    $version = $xmlReader->getAttribute('ВерсияСхемы');
-                    if (Tools::version_compare('2.05', $version, '<=')) {
-                        $startTime = microtime(true);
-                        if ($this->{$method}($xmlReader)) {
-                            $stats =
-                                "Peak memory: ".(memory_get_peak_usage(true) / 1024 / 1024)
-                                ."MB Time: ".(microtime(true) - $startTime);
-                            $this->success = "Импорт выполнен успешно ".$stats;
-                        }
-                        $xmlReader->close();
-                    } else {
-                        $this->error = "Версия ($version) схемы не поддерживается";
-                    }
-                }
+        if (!$xmlReader->open($this->uploadDir.$this->param['filename'])) {
+            $this->error = "Ошибка загрузки XML";
+            foreach (libxml_get_errors() as $error) {
+                $this->error .= ' ' . $error->message;
             }
-        } else {
-            $this->error = "Импорт (type: $type) на данный момент не поддерживается";
+        } elseif (!$xmlReader->next('КоммерческаяИнформация')) {
+            $this->error = "XML файл не имеет узла 'КоммерческаяИнформация', что не соответствует CommerceML 2";
+        } elseif (!Tools::version_compare('2.05', $version = $xmlReader->getAttribute('ВерсияСхемы'), '<=')) {
+            $this->error = "Версия ($version) схемы не поддерживается";
         }
-    }
-    /**
-     * @param $xmlReader XMLReader
-     * @return bool
-     */
-    public function importCatalog($xmlReader)
-    {
-        // todo hook for price product, sync othercurrencyprice module
-        // ?? при изменении каталога или другой сущности его GUID изменяется
-        $map = array(
-            'Группы' => 'categories',
-            'Свойство' => 'feature',
-            'Товар' => 'product'
-        );
+        if (!empty($this->error)) {
+            return;
+        }
+
+        $startTime = microtime(true);
         try {
             while ($xmlReader->read()) {
                 if ($xmlReader->nodeType != XMLReader::ELEMENT) {
                     continue;
                 }
                 $name = $xmlReader->localName;
-                if (array_key_exists($name, $map)) {
-                    $method = 'import'.Tools::ucfirst($map[$name]);
-                    if (method_exists($this, $method)) {
-                        $xmlSimple = new SimpleXMLElement($xmlReader->readOuterXml());
-                        $this->{$method}($xmlSimple);
+                if (array_key_exists($name, ImportCML::$mapTargetClassName)) {
+                    $xmlSimple = new SimpleXMLElement($xmlReader->readOuterXml());
+                    /** @var ImportCML $class */
+                    if (!ImportCML::catchBall($name, $xmlSimple)) {
+                        $this->error = "Импорт не удался";
+                        return;
                     }
                     $xmlReader->next();
                 }
             }
+            $xmlReader->close();
+            $stats =
+                "Peak memory: ".(memory_get_peak_usage(true) / 1024 / 1024)
+                ."MB Time: ".(microtime(true) - $startTime);
+            $this->success = "Импорт выполнен успешно ".$stats;
         } catch (Exception $e) {
             $this->error = "Импорт не удался из за ошибки : '{$e->getMessage()}'";
         }
-        return empty($this->error);
-    }
-
-    /**
-     * @param $xml SimpleXMLElement
-     * @param $fields array
-     */
-    public function importCategories($xml, $fields = array())
-    {
-        $category = CategoryImportCML::getInstance();
-        foreach ($xml->children() as $group) {
-            $category->catchBall($group, $fields)->save();
-
-            // add child category
-            if (isset($group->Группы)) {
-                $idParent = $category->id;
-                $levelDepthParent = DB::getInstance()->getValue(
-                    (new DbQuery())
-                        ->select('level_depth')
-                        ->from(Category::$definition['table'])
-                        ->where(Category::$definition['primary'].'='.$idParent)
-                );
-                $this->importCategories(
-                    $group->Группы,
-                    array(
-                        'id_parent' => $idParent,
-                        'level_depth' => $levelDepthParent + 1,
-                    )
-                );
-            }
-        }
-    }
-    /**
-     * @param $xml SimpleXMLElement
-     */
-    public function importFeature($xml)
-    {
-        FeatureImportCML::getInstance()->catchBall($xml);
-    }
-    /**
-     * @param $xml SimpleXMLElement
-     */
-    public function importProduct($xml)
-    {
-        ProductImportCML::getInstance()->catchBall($xml);
     }
 
     public function checkParam()
@@ -346,73 +278,88 @@ class WebserviceRequestCML
 }
 
 // CommerceML
-abstract class ImportCML
+class ImportCML
 {
-    /** @var  ImportCML[] */
-    protected static $instance = array();
-
-    public static $idLangDefault;
     public static $table = WebserviceRequestCML::MODULE_NAME;
-    public static $initialized = array();
-
     /**
      * @param bool $cache Флаг, хранить кеш? Cache::$local[$key] хранит только 1000 елементов, стоит хранить
      * только группы и производителя, так как товаров может быть свыше 1000, их хранение будет затирать кеш
      */
     public $cache = true;
+    public $hashEntityCML;
 
+    public $targetClassName;
+    public $fields = array();
     public $map = array();
+    public static $mapTargetClassName = array(
+        'Группа' => 'Category',
+        'Свойство' => 'Feature',
+//       'Товар' => 'product'
+
+    );
 
     public $id;
     public $guid;
+    /** @var SimpleXMLElement */
     public $xml;
-    public static $targetClassName;
-    /** @var  ObjectModel Содержит целевой класс PS для импорта */
-    public $hashEntityCML;
-
-    public $fields = array();
 
     protected function __construct()
     {
-        self::$idLangDefault = (int) Configuration::get('PS_LANG_DEFAULT');
     }
-    public static function getInstance()
+
+    public static function getInstance($entityCMLName)
     {
-        if (!isset(static::$targetClassName)) {
-            throw new ImportCMLException('Target classs is not set');
-        }
-        if (!isset(self::$instance[static::$targetClassName])) {
-            self::$instance[static::$targetClassName] = new static();
+        /** @var  ImportCML[] */
+        static $instance = array();
+
+        $targetClassName = ImportCML::$mapTargetClassName[$entityCMLName];
+        if (!isset($instance[$targetClassName])) {
+            $importClassName = $targetClassName.__CLASS__;
+            if (!class_exists($importClassName)) {
+                throw new ImportCMLException("Class $importClassName is not exists");
+            }
+            /** @var ImportCML $import */
+            $import = new $importClassName();
+            $import->targetClassName = $targetClassName;
+            $instance[$targetClassName] = $import;
+            if (count($defaultFields = $import->getDefaultFields()) > 0) {
+                new HackObjectModel($defaultFields, $targetClassName);
+            }
         }
 
-        return self::$instance[static::$targetClassName];
+        return $instance[$targetClassName];
     }
 
     /**
+     * @param string
      * @param SimpleXMLElement $xml
      * @param array $fields
-     * @return $this
+     * @return bool
      */
-    public function catchBall($xml, $fields = array())
+    public static function catchBall($entityCMLName, $xml, $fields = array())
     {
-        $this->id = null;
-        $this->guid = null;
-        $this->xml = $xml;
-        $this->fields = array();
+        /** @var ImportCML $import */
+        $import = self::getInstance($entityCMLName);
+        $import->id = null;
+        $import->guid = null;
+        $import->xml = $xml;
+        $import->fields = array();
         if (isset($xml->Ид)) {
-            $this->guid = (string) $xml->Ид;
+            $import->guid = (string) $xml->Ид;
         }
 
-        foreach ($this->map as $key => $val) {
-            $this->fields[$key] = isset($xml->{$val}) ? (string) $xml->{$val} : '';
+        foreach ($import->map as $key => $val) {
+            $import->fields[$key] = isset($xml->{$val}) ? (string) $xml->{$val} : '';
         }
-        $this->fields = array_merge($this->fields, $fields);
+        $import->fields = array_merge($import->fields, $fields);
 
-        if (!in_array(static::$targetClassName, self::$initialized)) {
-            $this->initDefaultObj();
-            self::$initialized[] = static::$targetClassName;
+        if ($import->save()) {
+            if (method_exists($import, 'beforeSave')) {
+                return $import->beforeSave();
+            }
+            return true;
         }
-        return $this;
+        return false;
     }
 
     public static function getIdByGuid($guid, $cache = false)
@@ -431,61 +378,73 @@ abstract class ImportCML
         return $id;
     }
 
-    public function initDefaultObj()
-    {
-        if (count($defaultFields = $this->getDefaultFields()) > 0) {
-            new HackObjectModel($defaultFields, static::$targetClassName);
-        }
-    }
-
     public function getDefaultFields()
     {
         return array();
     }
     public function getCalcFields()
     {
-        $linkRewrite = Tools::str2url($this->fields['name']);
-        if (!Validate::isLinkRewrite($linkRewrite)) {
-            $linkRewrite = 'friendly-url-auto-generation-failed';
+        $fields = array();
+        if ($this->hasDefinitionField('link_rewrite')) {
+            $linkRewrite = Tools::str2url($this->fields['name']);
+            if (!Validate::isLinkRewrite($linkRewrite)) {
+                $linkRewrite = 'friendly-url-auto-generation-failed';
 //           $this->warnings[] = 'URL rewriting failed to auto-generate a friendly URL for: {$this->fields['name']}';
+            }
+            $fields['link_rewrite'] = $linkRewrite;
         }
-        return array(
-            'link_rewrite' => $linkRewrite,
-        );
+        return $fields;
     }
     public function clearFields()
     {
         $this->fields = array_filter($this->fields, function ($key) {
-            // fix "incorrect access to static class member"
-            $targetClassName = static::$targetClassName;
-            return array_key_exists($key, $targetClassName::$definition['fields']);
+            return $this->hasDefinitionField($key);
         }, ARRAY_FILTER_USE_KEY);
+    }
+
+    public function hasDefinitionField($field)
+    {
+        static $definition;
+
+        if (!isset($definition)) {
+            // fix "incorrect access to static class member"
+            $targetClassName = $this->targetClassName;
+            $definition = $targetClassName::$definition;
+        }
+
+        return array_key_exists($field, $definition['fields']);
     }
 
     public function save()
     {
+        static $idLangDefault;
+
         if (!isset($this->fields) || !count($this->fields)) {
             throw new ImportCMLException('Сперва выполните инициализацию целевого объекта');
+        }
+
+        if (!isset($idLangDefault)) {
+            $idLangDefault = (int) Configuration::get('PS_LANG_DEFAULT');
         }
         $this->fields = array_merge($this->fields, $this->getCalcFields());
         // Убрать случайно попавшие поля, предотвратив случайное обновление и неправльный хеш
         $this->clearFields();
-        $this->hashEntityCML = md5(implode('', ksort($this->fields)));
+        ksort($this->fields);
+        $this->hashEntityCML = md5(implode('', $this->fields));
 
         if ($this->id = $this->getIdByGuid($this->guid, $this->cache)) {
             if (!$this->needUpd()) {
                 return true;
             }
             /** @var ObjectModel $targetClass */
-            $targetClass = new static::$targetClassName($this->id);
-            $defFields = $targetClass::$definition['fields'];
+            $targetClass = new $this->targetClassName($this->id);
             $fieldsToUpdate = array();
             foreach ($this->fields as $key => $value) {
                 if (isset($targetClass->{$key})) {
                     // field lang
                     if (is_array($targetClass->{$key})) {
-                        if (isset($targetClass->{$key}[self::$idLangDefault])) {
-                            if ($targetClass->{$key}[self::$idLangDefault] == $value) {
+                        if (isset($targetClass->{$key}[$idLangDefault])) {
+                            if ($targetClass->{$key}[$idLangDefault] == $value) {
                                 continue;
                             }
                         }
@@ -502,10 +461,10 @@ abstract class ImportCML
             $targetClass->setFieldsToUpdate($fieldsToUpdate);
         } else {
             /** @var ObjectModel $targetClass */
-            $targetClass = new static::$targetClassName();
+            $targetClass = new $this->targetClassName();
         }
         // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
-        $targetClass->hydrate($this->fields, self::$idLangDefault);
+        $targetClass->hydrate($this->fields, $idLangDefault);
         if ($targetClass->save()) {
             if ($this->id) {
                 return $this->updateEntityCML();
@@ -548,12 +507,27 @@ abstract class ImportCML
                 ->where("guid = '{$this->guid}' AND hash = '{$this->hashEntityCML}'")
         );
     }
+
+    /**
+     * @param SimpleXMLElement $parent
+     * @param array $fields
+     *
+     * @return bool
+     */
+    public static function walkChildren($parent, $fields = array())
+    {
+        /** @var SimpleXMLElement $child */
+        foreach ($parent->children() as $child) {
+            if (!self::catchBall($child->getName(), $child, $fields)) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 class CategoryImportCML extends ImportCML
 {
-    public static $targetClassName = 'Category';
-
     public $map = array(
         'name' => 'Наименование',
         'description' => 'Описание',
@@ -569,12 +543,33 @@ class CategoryImportCML extends ImportCML
             'level_depth' => $catParent->level_depth + 1,
         );
     }
+
+    public function beforeSave()
+    {
+        // Добавления здесь свойств необходимо для поддержания рекурсии и избежания повторного обхода групп
+        if (isset($this->xml->Свойства) && !ImportCML::walkChildren($this->xml->Свойства)) {
+            return false;
+        }
+        if (!isset($this->xml->Группы)) {
+            return true;
+        }
+        // add child category
+        $levelDepthParent = DB::getInstance()->getValue(
+            (new DbQuery())
+                ->select('level_depth')
+                ->from(Category::$definition['table'])
+                ->where(Category::$definition['primary'].'='.$this->id)
+        );
+        $fields = array(
+            'id_parent' => $this->id,
+            'level_depth' => $levelDepthParent + 1,
+        );
+        return ImportCML::walkChildren($this->xml->Группы, $fields);
+    }
 }
 
 class ProductImportCML extends ImportCML
 {
-    public static $targetClassName = 'Product';
-
     public $cache = false;
 
     public $map = array(
@@ -593,30 +588,25 @@ class ProductImportCML extends ImportCML
 
 class FeatureImportCML extends ImportCML
 {
-    public static $targetClassName = 'Feature';
-
     public $map = array(
         'name' => 'Наименование',
     );
-}
 
-class ManufacturerImportCML extends ImportCML
-{
-    public static $targetClassName = 'Manufacturer';
-
-    public $map = array(
-
-    );
+    public function beforeSave()
+    {
+        // todo save feature value
+        return true;
+    }
 }
 
 class HackObjectModel extends ObjectModel
 {
-    public function __construct($defaultValue, $className)
+    public function __construct($defaultFields, $className)
     {
         // init self::$loaded_classes[$className]
         !array_key_exists($className, self::$loaded_classes) && new $className();
 
-        foreach ($defaultValue as $key => $value) {
+        foreach ($defaultFields as $key => $value) {
             array_key_exists($key, self::$loaded_classes[$className])
             && self::$loaded_classes[$className][$key] = $value;
         }
