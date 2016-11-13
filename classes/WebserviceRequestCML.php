@@ -1,8 +1,5 @@
 <?php
 
-// todo hook for price product, sync othercurrencyprice module
-// ?? при изменении каталога или другой сущности его GUID изменяется
-
 class WebserviceRequestCML
 {
     protected static $instance;
@@ -117,6 +114,8 @@ class WebserviceRequestCML
         @ini_set('max_execution_time', '0');
         libxml_use_internal_errors(true);
 
+        // Не делаю проверку на валидность схеме XML, так как к примеру в украинской редакции
+        // испльзуется не стандартный элемент ЕДРПОУ вместо ЕГРПО, также возможны модификации
         $xmlReader = new XMLReader();
 
         if (!$xmlReader->open($this->uploadDir.$this->param['filename'])) {
@@ -126,7 +125,9 @@ class WebserviceRequestCML
             }
         } elseif (!$xmlReader->next('КоммерческаяИнформация')) {
             $this->error = "XML файл не имеет узла 'КоммерческаяИнформация', что не соответствует CommerceML 2";
-        } elseif (!Tools::version_compare('2.05', $version = $xmlReader->getAttribute('ВерсияСхемы'), '<=')) {
+        } elseif (!$version = $xmlReader->getAttribute('ВерсияСхемы')) {
+            $this->error = "Элемент КоммерческаяИнформация не имеет атрибута ВерсияСхемы";
+        } elseif (!Tools::version_compare('2.05', $version, '<=')) {
             $this->error = "Версия ($version) схемы не поддерживается";
         }
         if (!empty($this->error)) {
@@ -291,13 +292,15 @@ class ImportCML
     public $hashEntityCML;
 
     public $targetClassName;
+    public $idElementName = 'Ид';
     public $fields = array();
     public $map = array();
     public static $mapTargetClassName = array(
         'Группа' => 'Category',
         'Свойство' => 'Feature',
-//       'Товар' => 'product'
-
+        'Справочник' => 'FeatureValue',
+//        'Товар' => 'Product',
+//        'Производитель' => 'Manufacturer',
     );
 
     public $id;
@@ -346,8 +349,8 @@ class ImportCML
         $import->guid = null;
         $import->xml = $xml;
         $import->fields = array();
-        if (isset($xml->Ид)) {
-            $import->guid = (string) $xml->Ид;
+        if (isset($xml->{$import->idElementName})) {
+            $import->guid = (string) $xml->{$import->idElementName};
         }
 
         foreach ($import->map as $key => $val) {
@@ -355,13 +358,7 @@ class ImportCML
         }
         $import->fields = array_merge($import->fields, $fields);
 
-        if ($import->save()) {
-            if (method_exists($import, 'beforeSave')) {
-                return $import->beforeSave();
-            }
-            return true;
-        }
-        return false;
+        return $import->save();
     }
 
     public static function getIdByGuid($guid, $cache = false)
@@ -431,6 +428,10 @@ class ImportCML
         $this->fields = array_merge($this->fields, $this->getCalcFields());
         // Убрать случайно попавшие поля, предотвратив случайное обновление и неправльный хеш
         $this->clearFields();
+
+        if (!isset($this->guid)) {
+        }
+
         ksort($this->fields);
         $this->hashEntityCML = md5(implode('', $this->fields));
 
@@ -526,6 +527,22 @@ class ImportCML
         }
         return true;
     }
+    /**
+     * @param SimpleXMLElement $xml
+     * @param string $name
+     *
+     * @return bool|string
+     */
+    public static function getXmlElemAttrValue($xml, $name)
+    {
+        /** @var SimpleXMLElement $attr */
+        foreach ($xml->attributes() as $attrName => $value) {
+            if ($attrName == $name) {
+                return $value;
+            }
+        }
+        return false;
+    }
 }
 
 class CategoryImportCML extends ImportCML
@@ -546,7 +563,7 @@ class CategoryImportCML extends ImportCML
         );
     }
 
-    public function beforeSave()
+    public function save()
     {
         // Добавления здесь свойств необходимо для поддержания рекурсии и избежания повторного обхода групп
         if (isset($this->xml->Свойства) && !ImportCML::walkChildren($this->xml->Свойства)) {
@@ -580,6 +597,16 @@ class ProductImportCML extends ImportCML
 //        'description_short' => '',
     );
 
+    public function save()
+    {
+        // Удалить обьект если он был удален в ERP
+        if (self::getXmlElemAttrValue($this->xml, 'СтатусТип') == 'Удален') {
+            // EntityCML будет удален c помощью хука
+            return (new Product(self::getIdByGuid($this->guid)))->delete();
+        }
+        return parent::save();
+    }
+
     public function getCalcFields()
     {
         $fields = array();
@@ -594,11 +621,32 @@ class FeatureImportCML extends ImportCML
         'name' => 'Наименование',
     );
 
-    public function beforeSave()
+    public function save()
     {
-        // todo save feature value
+        if (!parent::save()) {
+            return false;
+        }
+        /** @var $this->xml->ВариантыЗначений SimpleXMLElement */
+        if (isset($this->xml->ВариантыЗначений)) {
+            $fields = array('id_feature' => $this->id);
+
+            if (isset($this->xml->ТипЗначений) && (string) $this->xml->ТипЗначений == 'Справочник') {
+                return ImportCML::walkChildren($this->xml->ВариантыЗначений, $fields);
+            } else {
+//                foreach ($this->xml->ВариантыЗначений->children() as $featureValue) {
+//                }
+            }
+        }
         return true;
     }
+}
+
+class FeatureValueImportCML extends ImportCML
+{
+    public $idElementName = 'ИдЗначения';
+    public $mal = array(
+       'value' => 'Значение',
+    );
 }
 
 class HackObjectModel extends ObjectModel
