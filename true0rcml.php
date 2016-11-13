@@ -9,7 +9,62 @@ if (!defined('_PS_VERSION_')) {
 class True0rCML extends Module
 {
     const NAME_CLASS_REQUEST = 'WebserviceRequestCML';
-    protected $hooks = array();
+    protected $hooks = array(
+        // При обновлении 'ВариантыЗначений' 'Значение' (которое не имеет guid в отличии от 'Справочник'),
+        // удалить EntityCML, так как измения не могут быть отслежены (для идентификации елемента используется md5)
+        'actionObjectFeatureValueUpdateAfter',
+        // то же самое и для 'Производитель'
+        'actionObjectManufacturerUpdateAfter',
+
+        'actionObjectProductDeleteAfter',
+        'actionObjectCategoryDeleteAfter',
+        'actionObjectFeatureDeleteAfter',
+        'actionObjectFeatureValueDeleteAfter',
+    );
+
+    public function __construct()
+    {
+        $this->name = 'true0rcml';
+        $this->tab = 'others';
+        $this->version = '0.1.0';
+        $this->author = 'Alexander Galaydyuk';
+        $this->need_instance = 0;
+        $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
+        $this->bootstrap = true;
+
+        parent::__construct();
+        // @codingStandardsIgnoreStart
+        $this->displayName = $this->l('Интеграция с CommerceML 2 (1С:Предприятие 8)');
+        $this->description = $this->l('Интеграция на базе протокола CommerceML2, для выгрузки товаров и цен');
+        $this->confirmUninstall = $this->l('Будут удаленны все данные о синхронизации, если потребуется воспользоватся модулем снова, то сперва прейдется импортировать все товары');
+        // @codingStandardsIgnoreEnd
+    }
+
+    public function hookActionObjectFeatureValueUpdateAfter($param)
+    {
+        $this->delEntityCMLWithoutGuid($param['object']->id);
+    }
+    public function hookActionObjectManufacturerUpdateAfter($param)
+    {
+        $this->delEntityCMLWithoutGuid($param['object']->id);
+    }
+
+    public function hookActionObjectProductDeleteAfter($param)
+    {
+        $this->delEntityCML($param['object']->id);
+    }
+    public function hookActionObjectCategoryDeleteAfter($param)
+    {
+        $this->delEntityCML($param['object']->id);
+    }
+    public function hookActionObjectFeatureDeleteAfter($param)
+    {
+        $this->delEntityCML($param['object']->id);
+    }
+    public function hookActionObjectFeatureValueDeleteAfter($param)
+    {
+        $this->delEntityCML($param['object']->id);
+    }
 
     public function getContent()
     {
@@ -20,7 +75,6 @@ class True0rCML extends Module
     }
     public function getWarning()
     {
-        // todo не установлен модуль мультивалюты
     }
     protected function getConfValues()
     {
@@ -96,22 +150,13 @@ class True0rCML extends Module
         );
     }
 
-    public function __construct()
+    public function delEntityCML($id)
     {
-        $this->name = 'true0rcml';
-        $this->tab = 'others';
-        $this->version = '0.1.0';
-        $this->author = 'Alexander Galaydyuk';
-        $this->need_instance = 0;
-        $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
-        $this->bootstrap = true;
-
-        parent::__construct();
-        // @codingStandardsIgnoreStart
-        $this->displayName = $this->l('Интеграция с CommerceML 2 (1С:Предприятие 8)');
-        $this->description = $this->l('Интеграция на базе протокола CommerceML2, для выгрузки товаров и цен');
-        $this->confirmUninstall = $this->l('Будут удаленны все данные о синхронизации, если потребуется воспользоватся модулем снова, то сперва прейдется импортировать все товары');
-        // @codingStandardsIgnoreEnd
+        Db::getInstance()->delete($this->name, "id = $id");
+    }
+    public function delEntityCMLWithoutGuid($id)
+    {
+        Db::getInstance()->delete($this->name, "guid IS NULL AND id = $id");
     }
 
     public function install()
