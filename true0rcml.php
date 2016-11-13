@@ -116,6 +116,8 @@ class True0rCML extends Module
 
     public function install()
     {
+        Configuration::updateGlobalValue('PS_WEBSERVICE', 1);
+
         $fileName = self::NAME_CLASS_REQUEST.'.php';
         $pathModule = $this->getLocalPath().'classes/'.$fileName;
         $pathClasses = _PS_CLASS_DIR_.'webservice/'.$fileName;
@@ -146,6 +148,8 @@ class True0rCML extends Module
     }
     public function uninstall()
     {
+        Configuration::updateGlobalValue('PS_WEBSERVICE', 0);
+
         @unlink(_PS_CLASS_DIR_.'webservice/'.self::NAME_CLASS_REQUEST.'.php');
 
         $this->delWsKey();

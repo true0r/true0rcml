@@ -49,6 +49,8 @@ class WebserviceRequestCML
 
         if (!Module::isEnabled(self::MODULE_NAME)) {
             $this->error = "Модуль интеграции с CommerceML 2 (1С:Предприятие 8) отключен";
+        } elseif (!Configuration::get('PS_WEBSERVICE')) {
+            $this->error = 'Веб-сервисы отключены, необходимо выполнить активацию в админ панели';
         } elseif ($this->checkParam()) {
             $mode = $this->param['mode'];
             $methodName = 'mode'.Tools::ucfirst($mode);
