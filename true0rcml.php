@@ -29,10 +29,8 @@ class True0rCML extends Module
 
         return array(
             'title' => $this->displayName,
-            'link1C' => preg_replace(
-                '/^(https?:\/\/)/',
-                "$1{$this->getWsKey()}@",
-                "{$this->context->link->getBaseLink()}api/"),
+            'wsKey' => $this->getWsKey(),
+            'link' => $this->context->link->getBaseLink()."api/",
             'linkAction' => array(
                 'newWsKey' => $link.'new_ws_key',
             )
