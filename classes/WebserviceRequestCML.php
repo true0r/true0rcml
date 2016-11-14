@@ -443,17 +443,13 @@ class ImportCML
             $targetClass = new $this->targetClassName($this->id);
             $fieldsToUpdate = array();
             foreach ($this->fields as $key => $value) {
-                if (isset($targetClass->{$key})) {
-                    // field lang
-                    if (is_array($targetClass->{$key})) {
-                        if (isset($targetClass->{$key}[$idLangDefault])) {
-                            if ($targetClass->{$key}[$idLangDefault] == $value) {
-                                continue;
-                            }
-                        }
-                    } elseif ($targetClass->{$key} == $value) {
-                        continue;
+                // field lang
+                if (!empty($targetClass::$definition['fields'][$key]['lang'])) {
+                    if (!isset($targetClass->{$key}[$idLangDefault])
+                        || $targetClass->{$key}[$idLangDefault] != $value) {
+                        $fieldsToUpdate[$key][$idLangDefault] = true;
                     }
+                } elseif ($targetClass->{$key} != $value) {
                     $fieldsToUpdate[$key] = true;
                 }
             }
