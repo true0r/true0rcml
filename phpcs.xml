@@ -21,7 +21,5 @@
     <!-- PS requires to include this code 'if (!defined('_PS_VERSION_')) exit;' in a file of a module -->
     <!-- that violates this rule -->
     <exclude name="PSR1.Files.SideEffects.FoundWithSymbols"/>
-
-    <exclude name="PSR1.Classes.ClassDeclaration.MultipleClasses"/>
   </rule>
 </ruleset>
