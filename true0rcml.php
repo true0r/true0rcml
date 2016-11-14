@@ -144,7 +144,8 @@ class True0rCML extends Module
     {
         Configuration::updateGlobalValue('PS_WEBSERVICE', 0);
 
-        @unlink(_PS_UPLOAD_DIR_.$this->name);
+        $fs = new \Symfony\Component\Filesystem\Filesystem();
+        $fs->remove(_PS_UPLOAD_DIR_.$this->name);
         @unlink(_PS_CLASS_DIR_.'webservice/'.self::NAME_CLASS_REQUEST.'.php');
 
         $this->delWsKey();
