@@ -92,36 +92,33 @@ class WebserviceRequestCML
     }
     public function modeInit()
     {
-        $this->cleanCache()
-        && $this->content = "zip=".(extension_loaded('zip') ? 'yes' : 'no')."\nfile_limit=".Tools::getMaxUploadSize();
+        $fs = new \Symfony\Component\Filesystem\Filesystem();
+        $fs->remove($this->uploadDir);
+
+        $this->content = "zip=".(extension_loaded('zip') ? 'yes' : 'no')."\nfile_limit=".Tools::getMaxUploadSize();
     }
     public function modeFile()
     {
-        // todo поддержка загрузки частями
-
         if (!$this->checkUploadedPOST()) {
             return;
         }
 
-        $fileName = $this->param['filename'];
-        $path = $this->uploadDir.$fileName;
+        $fs = new \Symfony\Component\Filesystem\Filesystem();
+        $file = $this->param['filename'];
+        $path = $this->uploadDir.$file;
 
-        if (false !== strpos($fileName, '../')) {
+        if (false !== strpos($file, '../')) {
             $this->error = "Попытка доступа к системным файлам";
-
-        // unzip
-        } elseif ($this->saveFile($path)
-            && 'zip' === pathinfo($fileName, PATHINFO_EXTENSION)) {
-            if (true === ($zip = new ZipArchive())->open($path)) {
-                if (!$zip->extractTo($this->uploadDir)) {
-                    $this->error = "Ошибка распаковки zip архива $path";
-                } else {
-                    $this->success = "Zip архив загружен и распакован $path";
-                }
-                $zip->close();
-                @unlink($path);
+            return;
+        }
+        if (!file_exists($path)) {
+            $fs->dumpFile($path, $this->file);
+        // Дописать в случае загрузки частями
+        } else {
+            if (!@file_put_contents($path.DIRECTORY_SEPARATOR.$file, $this->file, FILE_APPEND)) {
+                $this->error = "Файл не был сохренен $file";
             } else {
-                $this->error = "Не могу открыть zip архив $path";
+                $this->success = "Файл загружен $file";
             }
         }
     }
@@ -180,8 +177,6 @@ class WebserviceRequestCML
 
     public function checkParam()
     {
-        // todo проверка версии схемы (ВерсияСхемы) &version=v
-
         foreach ($this->defParam as $key => $val) {
             if (!isset($this->param[$key]) || empty($this->param[$key])) {
                 $this->error = "Не установлен $key параметр запроса";
@@ -207,71 +202,6 @@ class WebserviceRequestCML
             $this->error = 'Файл не отправлен';
         } elseif (!strlen($this->file)) {
             $this->error = 'Файл пуст';
-        }
-
-        return empty($this->error);
-    }
-
-    public function cleanCache()
-    {
-        if (!$this->remove($this->uploadDir)) {
-            $this->error = "Не могу очистить папку с кешем {$this->uploadDir}";
-        }
-
-        return empty($this->error);
-    }
-    public function remove($path)
-    {
-        if (file_exists($path)) {
-            if (is_dir($path)) {
-                $dir = dir($path);
-                while (false !== ($fileName = $dir->read())) {
-                    if ('.' != $fileName && '..' != $fileName) {
-                        if (!$this->remove($dir->path.DIRECTORY_SEPARATOR.$fileName)) {
-                            return false;
-                        }
-                    }
-                }
-                $dir->close();
-                return @rmdir($path) || !file_exists($path);
-            } else {
-                return @unlink($path) || !file_exists($path);
-            }
-        } else {
-            return true;
-        }
-    }
-    public function saveFile($path)
-    {
-        $fileName = basename($path);
-        $path = dirname($path);
-
-        $dirs = array($path);
-        $dir = dirname($path);
-        $lastDirName = '';
-        while ($lastDirName != $dir) {
-            array_unshift($dirs, $dir);
-            $lastDirName = $dir;
-            $dir = dirname($dir);
-        }
-
-        foreach ($dirs as $dir) {
-            if (!file_exists($dir) && !@mkdir($dir)) {
-                $error = error_get_last();
-                $this->error = "Не могу создать папку с кешем $dir {$error['massage']}";
-                break;
-            } elseif (!is_dir($dir)) {
-                $this->error = "Это не директрория $dir";
-                break;
-            }
-        }
-
-        if (empty($this->error)) {
-            if (!file_put_contents($path.DIRECTORY_SEPARATOR.$fileName, $this->file)) {
-                $this->error = "Файл не был сохренен $fileName";
-            } else {
-                $this->success = "Файл загружен $fileName";
-            }
         }
 
         return empty($this->error);
