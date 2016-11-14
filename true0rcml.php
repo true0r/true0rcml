@@ -163,13 +163,13 @@ class True0rCML extends Module
     {
         Configuration::updateGlobalValue('PS_WEBSERVICE', 1);
 
-        $fileName = self::NAME_CLASS_REQUEST.'.php';
-        $pathModule = $this->getLocalPath().'classes/'.$fileName;
-        $pathClasses = _PS_CLASS_DIR_.'webservice/'.$fileName;
+        $file = self::NAME_CLASS_REQUEST.'.php';
+        $pathModule = $this->getLocalPath().'classes/'.$file;
+        $pathClasses = _PS_CLASS_DIR_.'webservice/'.$file;
 
         file_exists($pathClasses) && @unlink($pathClasses);
-        if (!@copy($pathModule, $pathClasses)) {
-            $this->_errors[] = sprintf($this->l('Не могу скопировать ксласс %s в папку classes/'), $fileName);
+        if (!@symlink($pathModule, $pathClasses)) {
+            $this->_errors[] = sprintf($this->l('Не могу скопировать ксласс %s в папку classes/'), $file);
             return false;
         }
         PrestaShopAutoload::getInstance()->generateIndex();
@@ -195,6 +195,7 @@ class True0rCML extends Module
     {
         Configuration::updateGlobalValue('PS_WEBSERVICE', 0);
 
+        @unlink(_PS_UPLOAD_DIR_.$this->name);
         @unlink(_PS_CLASS_DIR_.'webservice/'.self::NAME_CLASS_REQUEST.'.php');
 
         $this->delWsKey();
