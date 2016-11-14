@@ -94,7 +94,7 @@ class True0rCML extends Module
     public function postProcess()
     {
         if (Tools::isSubmit('new_ws_key')) {
-            $this->newWsKey();
+            $this->delWsKey() && $this->addWsKey();
         }
     }
 
@@ -137,17 +137,9 @@ class True0rCML extends Module
 
         return $key;
     }
-
     public function delWsKey()
     {
         return Db::getInstance()->delete(WebserviceKey::$definition['table'], "module_name = '{$this->name}'");
-    }
-    public function newWsKey()
-    {
-        return (
-            $this->delWsKey()
-            && $this->addWsKey()
-        );
     }
 
     public function delEntityCML($id)
@@ -187,8 +179,8 @@ class True0rCML extends Module
         return (
             $dbStatus
             && $this->addWsKey()
-            && $this->registerHook($this->hooks)
             && parent::install()
+            && $this->registerHook($this->hooks)
         );
     }
     public function uninstall()
