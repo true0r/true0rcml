@@ -2,13 +2,12 @@
 
 class ImportCML
 {
-    public static $table = WebserviceRequestCML::MODULE_NAME;
     /**
      * @param bool $cache Флаг, хранить кеш? Cache::$local[$key] хранит только 1000 елементов, стоит хранить
      * только группы и производителя, так как товаров может быть свыше 1000, их хранение будет затирать кеш
      */
     public $cache = true;
-    public $hashEntityCML;
+    public $hash;
 
     public $targetClassName;
     public $idElementName = 'Ид';
@@ -23,7 +22,7 @@ class ImportCML
 //        'Производитель' => 'Manufacturer',
     );
 
-    public $id;
+    public $idTarget;
     public $guid;
     /** @var SimpleXMLElement */
     public $xml;
@@ -37,7 +36,7 @@ class ImportCML
         /** @var  ImportCML[] */
         static $instance = array();
 
-        $targetClassName = ImportCML::$mapTargetClassName[$entityCMLName];
+        $targetClassName = self::$mapTargetClassName[$entityCMLName];
         if (!isset($instance[$targetClassName])) {
             $importClassName = $targetClassName.__CLASS__;
             if (!class_exists($importClassName)) {
@@ -65,7 +64,7 @@ class ImportCML
     {
         /** @var ImportCML $import */
         $import = self::getInstance($entityCMLName);
-        $import->id = null;
+        $import->idTarget = null;
         $import->guid = null;
         $import->xml = $xml;
         $import->fields = array();
@@ -82,30 +81,6 @@ class ImportCML
         $import->fields = array_merge($import->fields, $fields);
 
         return $import->save();
-    }
-
-    public static function getId($guid, $hash = null, $cache = false)
-    {
-        if (!$guid && !$hash) {
-            throw new ImportCMLException('Значиние guid или hash должно быть задано');
-        }
-        $cacheId = $guid.$hash;
-        $where = $guid ? "guid = '$guid'" : '';
-        $where .= $guid && $hash ? ' AND ' : '';
-        $where .= $hash ? "hash = '$hash'" : '';
-
-        if ($cache && Cache::isStored($cacheId)) {
-            return Cache::retrieve($cacheId);
-        }
-
-        $id = Db::getInstance()->getValue(
-            (new DbQuery())
-                ->select('id')
-                ->from(self::$table)
-                ->where($where)
-        );
-        $cache && $id && Cache::store($cacheId, $id);
-        return $id;
     }
 
     public function getDefaultFields()
@@ -160,15 +135,36 @@ class ImportCML
         // Убрать случайно попавшие поля, предотвратив случайное обновление и неправльный хеш
         $this->clearFields();
         ksort($this->fields);
-        $this->hashEntityCML = md5(implode('', $this->fields));
+        $this->hash = md5(implode('', $this->fields));
 
-        // update
-        if ($this->guid && $this->id = $this->getId($this->guid, null, $this->cache)) {
+        $this->setIdTarget();
+
+        /** @var ObjectModel $targetClass */
+        $targetClass = null;
+
+        // add
+        if (!$this->idTarget) {
+            $targetClass = new $this->targetClassName();
+            // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
+            $targetClass->hydrate($this->fields, $idLangDefault);
+            if ($targetClass->add()) {
+                $this->idTarget = $targetClass->id;
+                $entityCML = new EntityCML();
+                $entityCML->guid = $this->guid;
+                $entityCML->hash = $this->hash;
+                $entityCML->id_target = $this->idTarget;
+                return $entityCML->add();
+            } else {
+                return false;
+            }
+
+        // update Возможно сущность (без guid, идентификация на базе md5) уже сущетвует,
+        // обновление не доступны для этого типа
+        } elseif ($this->guid && $targetExists = $this->targetExists()) {
             if (!$this->needUpd()) {
                 return true;
             }
-            /** @var ObjectModel $targetClass */
-            $targetClass = new $this->targetClassName($this->id);
+            $targetClass = new $this->targetClassName($this->idTarget);
             $fieldsToUpdate = array();
             foreach ($this->fields as $key => $value) {
                 // field lang
@@ -182,58 +178,51 @@ class ImportCML
                 }
             }
             // Возможно хеш изменился из за изменений в алгоритме обработки свойств, но целевой обьект нет
-            if (count($fieldsToUpdate) == 0) {
-                return $this->updateEntityCML();
+            if (count($fieldsToUpdate) > 0) {
+                $targetClass->setFieldsToUpdate($fieldsToUpdate);
+                $targetClass->hydrate($this->fields, $idLangDefault);
+                if (!$targetClass->update()) {
+                    return false;
+                }
             }
-            $targetClass->setFieldsToUpdate($fieldsToUpdate);
+            return EntityCML::updHash($this->guid, $this->hash);
 
-        // Возможно сущность (без guid, идентификация на базе md5) уже сущетвует, обновление не доступны для этого типа
-        } elseif (self::getId(null, $this->hashEntityCML, $this->cache)) {
-            return true;
-        // add
-        } else {
-            /** @var ObjectModel $targetClass */
+        // recovery Восстановить объект если был удален в магазине
+        } elseif (!$targetExists) {
             $targetClass = new $this->targetClassName();
+            $targetClass->hydrate($this->fields, $idLangDefault);
+            return $targetClass->add();
         }
 
-        // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
-        $targetClass->hydrate($this->fields, $idLangDefault);
-        if ($targetClass->save()) {
-            if ($this->id) {
-                return $this->updateEntityCML();
-            } else {
-                $this->id = $targetClass->id;
-                return $this->addEntityCML();
-            }
-        } else {
-            return false;
-        }
-    }
-
-    public function updateEntityCML()
-    {
-        return DB::getInstance()->update(
-            self::$table,
-            array('hash' => $this->hashEntityCML), "guid = '{$this->guid}'"
-        );
-    }
-    public function addEntityCML()
-    {
-        if (!isset($this->id)) {
-            throw new ImportCMLException('Id is not set for entity CML');
-        }
-        $this->cache && $this->guid && Cache::store($this->guid, $this->id);
-        return DB::getInstance()->insert(
-            self::$table,
-            array('id' => $this->id, 'guid' => $this->guid, 'hash' => $this->hashEntityCML),
-            false,
-            false
-        );
+        return true;
     }
 
     public function needUpd()
     {
-        return !self::getId($this->guid, $this->hashEntityCML);
+        return !EntityCML::getIdTarget($this->guid, $this->hash);
+    }
+
+    public function targetExists()
+    {
+        $this->setIdTarget();
+        if (!$this->idTarget) {
+            return false;
+        }
+        $targetClass = $this->targetClassName;
+        return (bool) Db::getInstance()->getValue(
+            (new DbQuery())
+                ->select('COUNT(*)')
+                ->from($targetClass::$definition['table'])
+                ->where($targetClass::$definition['table']." = '{$this->idTarget}'")
+        );
+    }
+
+    public function setIdTarget()
+    {
+        if (!$this->idTarget) {
+            $this->idTarget = $this->guid ? EntityCML::getIdTarget($this->guid, null, $this->cache) :
+                EntityCML::getIdTarget(null, $this->hash, $this->cache);
+        }
     }
 
     /**

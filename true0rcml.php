@@ -6,21 +6,12 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+require_once(__DIR__.'/classes/EntityCML.php');
+
 class True0rCML extends Module
 {
     const NAME_CLASS_REQUEST = 'WebserviceRequestCML';
-    protected $hooks = array(
-        // При обновлении 'ВариантыЗначений' 'Значение' (которое не имеет guid в отличии от 'Справочник'),
-        // удалить EntityCML, так как измения не могут быть отслежены (для идентификации елемента используется md5)
-        'actionObjectFeatureValueUpdateAfter',
-        // то же самое и для 'Производитель'
-        'actionObjectManufacturerUpdateAfter',
-
-        'actionObjectProductDeleteAfter',
-        'actionObjectCategoryDeleteAfter',
-        'actionObjectFeatureDeleteAfter',
-        'actionObjectFeatureValueDeleteAfter',
-    );
+    protected $hooks = array();
 
     public function __construct()
     {
@@ -38,32 +29,6 @@ class True0rCML extends Module
         $this->description = $this->l('Интеграция на базе протокола CommerceML2, для выгрузки товаров и цен');
         $this->confirmUninstall = $this->l('Будут удаленны все данные о синхронизации, если потребуется воспользоватся модулем снова, то сперва прейдется импортировать все товары');
         // @codingStandardsIgnoreEnd
-    }
-
-    public function hookActionObjectFeatureValueUpdateAfter($param)
-    {
-        $this->delEntityCMLWithoutGuid($param['object']->id);
-    }
-    public function hookActionObjectManufacturerUpdateAfter($param)
-    {
-        $this->delEntityCMLWithoutGuid($param['object']->id);
-    }
-
-    public function hookActionObjectProductDeleteAfter($param)
-    {
-        $this->delEntityCML($param['object']->id);
-    }
-    public function hookActionObjectCategoryDeleteAfter($param)
-    {
-        $this->delEntityCML($param['object']->id);
-    }
-    public function hookActionObjectFeatureDeleteAfter($param)
-    {
-        $this->delEntityCML($param['object']->id);
-    }
-    public function hookActionObjectFeatureValueDeleteAfter($param)
-    {
-        $this->delEntityCML($param['object']->id);
     }
 
     public function getContent()
@@ -142,15 +107,6 @@ class True0rCML extends Module
         return Db::getInstance()->delete(WebserviceKey::$definition['table'], "module_name = '{$this->name}'");
     }
 
-    public function delEntityCML($id)
-    {
-        Db::getInstance()->delete($this->name, "id = $id");
-    }
-    public function delEntityCMLWithoutGuid($id)
-    {
-        Db::getInstance()->delete($this->name, "guid IS NULL AND id = $id");
-    }
-
     public function install()
     {
         Configuration::updateGlobalValue('PS_WEBSERVICE', 1);
@@ -167,11 +123,12 @@ class True0rCML extends Module
         PrestaShopAutoload::getInstance()->generateIndex();
 
         $dbStatus = DB::getInstance()->execute(
-            'CREATE TABLE IF NOT EXISTS '._DB_PREFIX_.$this->name.' (
-                `id` int(10) unsigned NOT NULL,
-                `guid` VARCHAR(40),
-                `hash` VARCHAR(32) NOT NULL,
-                PRIMARY KEY (`hash`)
+            'CREATE TABLE IF NOT EXISTS '._DB_PREFIX_.EntityCML::$definition['table'].' (
+                `id_entitycml` int(10) unsigned NOT NULL auto_increment,
+                `id_target` int(10) unsigned NOT NULL,
+                `guid` varchar(80),
+                `hash` varchar(32) NOT NULL,
+                PRIMARY KEY (`id_entitycml`)
             ) ENGINE='._MYSQL_ENGINE_.' DEFAULT CHARSET=utf8'
         );
         !$dbStatus && $this->_errors[] = $this->l('Cannot create table for module');
@@ -192,7 +149,7 @@ class True0rCML extends Module
 
         $this->delWsKey();
         return (
-            Db::getInstance()->execute('DROP TABLE IF EXISTS '._DB_PREFIX_.$this->name)
+            Db::getInstance()->execute('DROP TABLE IF EXISTS '._DB_PREFIX_.EntityCML::$definition['table'])
             && parent::uninstall()
         );
     }

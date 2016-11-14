@@ -23,8 +23,14 @@ class ProductImportCML extends ImportCML
     {
         // Удалить обьект если он был удален в ERP
         if (self::getXmlElemAttrValue($this->xml, 'СтатусТип') == 'Удален') {
-            // EntityCML будет удален c помощью хука
-            return (new Product(self::getId($this->guid)))->delete();
+            $this->setIdTarget();
+            if ($this->idTarget) {
+                EntityCML::deleteByGuidOrHash($this->guid, $this->hash);
+                if ($this->targetExists()) {
+                    (new Product($this->idTarget))->delete();
+                }
+            }
+            return true;
         }
 //        return parent::save();
         return true;
