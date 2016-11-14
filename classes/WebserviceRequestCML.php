@@ -299,7 +299,8 @@ class ImportCML
         'Группа' => 'Category',
         'Свойство' => 'Feature',
         'Справочник' => 'FeatureValue',
-//        'Товар' => 'Product',
+        'Значение' => 'FeatureValue',
+        'Товар' => 'Product',
 //        'Производитель' => 'Manufacturer',
     );
 
@@ -349,31 +350,42 @@ class ImportCML
         $import->guid = null;
         $import->xml = $xml;
         $import->fields = array();
-        if (isset($xml->{$import->idElementName})) {
-            $import->guid = (string) $xml->{$import->idElementName};
-        }
 
-        foreach ($import->map as $key => $val) {
-            $import->fields[$key] = isset($xml->{$val}) ? (string) $xml->{$val} : '';
+        if ($xml) {
+            if (isset($xml->{$import->idElementName})) {
+                $import->guid = (string) $xml->{$import->idElementName};
+            }
+
+            foreach ($import->map as $key => $val) {
+                $import->fields[$key] = isset($xml->{$val}) ? (string) $xml->{$val} : '';
+            }
         }
         $import->fields = array_merge($import->fields, $fields);
 
         return $import->save();
     }
 
-    public static function getIdByGuid($guid, $cache = false)
+    public static function getId($guid, $hash = null, $cache = false)
     {
-        if ($cache && Cache::isStored($guid)) {
-            return Cache::retrieve($guid);
+        if (!$guid && !$hash) {
+            throw new ImportCMLException('Значиние guid или hash должно быть задано');
+        }
+        $cacheId = $guid.$hash;
+        $where = $guid ? "guid = '$guid'" : '';
+        $where .= $guid && $hash ? ' AND ' : '';
+        $where .= $hash ? "hash = '$hash'" : '';
+
+        if ($cache && Cache::isStored($cacheId)) {
+            return Cache::retrieve($cacheId);
         }
 
         $id = Db::getInstance()->getValue(
             (new DbQuery())
                 ->select('id')
                 ->from(self::$table)
-                ->where("guid = '$guid'")
+                ->where($where)
         );
-        $cache && $id && Cache::store($guid, $id);
+        $cache && $id && Cache::store($cacheId, $id);
         return $id;
     }
 
@@ -428,14 +440,11 @@ class ImportCML
         $this->fields = array_merge($this->fields, $this->getCalcFields());
         // Убрать случайно попавшие поля, предотвратив случайное обновление и неправльный хеш
         $this->clearFields();
-
-        if (!isset($this->guid)) {
-        }
-
         ksort($this->fields);
         $this->hashEntityCML = md5(implode('', $this->fields));
 
-        if ($this->id = $this->getIdByGuid($this->guid, $this->cache)) {
+        // update
+        if ($this->guid && $this->id = $this->getId($this->guid, null, $this->cache)) {
             if (!$this->needUpd()) {
                 return true;
             }
@@ -458,10 +467,15 @@ class ImportCML
                 return $this->updateEntityCML();
             }
             $targetClass->setFieldsToUpdate($fieldsToUpdate);
+        // Возможно сущность (без guid, идентификация на базе md5) уже сущетвует, обновление не доступны для этого типа
+        } elseif (self::getId(null, $this->hashEntityCML, $this->cache)) {
+            return true;
+        // add
         } else {
             /** @var ObjectModel $targetClass */
             $targetClass = new $this->targetClassName();
         }
+
         // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
         $targetClass->hydrate($this->fields, $idLangDefault);
         if ($targetClass->save()) {
@@ -488,7 +502,7 @@ class ImportCML
         if (!isset($this->id)) {
             throw new ImportCMLException('Id is not set for entity CML');
         }
-        $this->cache && Cache::store($this->guid, $this->id);
+        $this->cache && $this->guid && Cache::store($this->guid, $this->id);
         return DB::getInstance()->insert(
             self::$table,
             array('id' => $this->id, 'guid' => $this->guid, 'hash' => $this->hashEntityCML),
@@ -499,12 +513,7 @@ class ImportCML
 
     public function needUpd()
     {
-        return !Db::getInstance()->getValue(
-            (new DbQuery())
-                ->select('1')
-                ->from(self::$table)
-                ->where("guid = '{$this->guid}' AND hash = '{$this->hashEntityCML}'")
-        );
+        return !self::getId($this->guid, $this->hashEntityCML);
     }
 
     /**
@@ -561,8 +570,11 @@ class CategoryImportCML extends ImportCML
 
     public function save()
     {
+        if (!parent::save()) {
+            return false;
+        }
         // Добавления здесь свойств необходимо для поддержания рекурсии и избежания повторного обхода групп
-        if (isset($this->xml->Свойства) && !ImportCML::walkChildren($this->xml->Свойства)) {
+        if (isset($this->xml->Свойства) && !self::walkChildren($this->xml->Свойства)) {
             return false;
         }
         if (!isset($this->xml->Группы)) {
@@ -579,7 +591,7 @@ class CategoryImportCML extends ImportCML
             'id_parent' => $this->id,
             'level_depth' => $levelDepthParent + 1,
         );
-        return ImportCML::walkChildren($this->xml->Группы, $fields);
+        return self::walkChildren($this->xml->Группы, $fields);
     }
 }
 
@@ -588,24 +600,41 @@ class ProductImportCML extends ImportCML
     public $cache = false;
 
     public $map = array(
+        'reference' => 'Артикул',
+
         'name' => 'Наименование',
         'description' => 'Описание',
 //        'description_short' => '',
     );
+
+    public function __construct()
+    {
+        $param = true;
+        $this->map['reference'] = $param ? 'Артикул' : 'Штрихкод';
+        parent::__construct();
+    }
 
     public function save()
     {
         // Удалить обьект если он был удален в ERP
         if (self::getXmlElemAttrValue($this->xml, 'СтатусТип') == 'Удален') {
             // EntityCML будет удален c помощью хука
-            return (new Product(self::getIdByGuid($this->guid)))->delete();
+            return (new Product(self::getId($this->guid)))->delete();
         }
-        return parent::save();
+//        return parent::save();
+        return true;
     }
 
     public function getCalcFields()
     {
         $fields = array();
+
+        if (isset($this->xml->Штрихкод)) {
+            $upcOrEan13 = (string) $this->xml->Штрихкод;
+            $fields[Tools::strlen($upcOrEan13) == 13 ? 'ean13' : 'upc'] = $upcOrEan13;
+        }
+
+
 
         return array_merge($fields, parent::getCalcFields());
     }
@@ -627,20 +656,25 @@ class FeatureImportCML extends ImportCML
             $fields = array('id_feature' => $this->id);
 
             if (isset($this->xml->ТипЗначений) && (string) $this->xml->ТипЗначений == 'Справочник') {
-                return ImportCML::walkChildren($this->xml->ВариантыЗначений, $fields);
+                return self::walkChildren($this->xml->ВариантыЗначений, $fields);
             } else {
-//                foreach ($this->xml->ВариантыЗначений->children() as $featureValue) {
-//                }
+                foreach ($this->xml->ВариантыЗначений->children() as $featureValue) {
+                    if (!self::catchBall(
+                        $featureValue->getName(),
+                        null,
+                        array_merge($fields, array('value' => (string) $featureValue)))) {
+                        return false;
+                    }
+                }
             }
         }
         return true;
     }
 }
-
 class FeatureValueImportCML extends ImportCML
 {
     public $idElementName = 'ИдЗначения';
-    public $mal = array(
+    public $map = array(
        'value' => 'Значение',
     );
 }

@@ -177,9 +177,9 @@ class True0rCML extends Module
         $dbStatus = DB::getInstance()->execute(
             'CREATE TABLE IF NOT EXISTS '._DB_PREFIX_.$this->name.' (
                 `id` int(10) unsigned NOT NULL,
-                `guid` VARCHAR(40) NOT NULL,
+                `guid` VARCHAR(40),
                 `hash` VARCHAR(32) NOT NULL,
-                PRIMARY KEY (`guid`)
+                PRIMARY KEY (`hash`)
             ) ENGINE='._MYSQL_ENGINE_.' DEFAULT CHARSET=utf8'
         );
         !$dbStatus && $this->_errors[] = $this->l('Cannot create table for module');
