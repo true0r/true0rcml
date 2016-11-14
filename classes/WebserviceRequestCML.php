@@ -114,13 +114,11 @@ class WebserviceRequestCML
         if (!file_exists($path)) {
             $fs->dumpFile($path, $this->file);
         // Дописать в случае загрузки частями
-        } else {
-            if (!@file_put_contents($path.DIRECTORY_SEPARATOR.$file, $this->file, FILE_APPEND)) {
-                $this->error = "Файл не был сохренен $file";
-            } else {
-                $this->success = "Файл загружен $file";
-            }
+        } elseif (!@file_put_contents($path, $this->file, FILE_APPEND)) {
+            $this->error = "Файл не был сохренен $file";
+            return;
         }
+        $this->success = "Файл загружен $file";
     }
     public function modeImport()
     {
