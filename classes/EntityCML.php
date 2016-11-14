@@ -4,4 +4,3 @@ class EntityCML extends ObjectModel
 {
 
 }
-

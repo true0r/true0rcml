@@ -33,8 +33,15 @@ class WebserviceRequestCML
     public function __construct()
     {
         $this->uploadDir = _PS_UPLOAD_DIR_.self::MODULE_NAME.DIRECTORY_SEPARATOR;
+        $path = _PS_MODULE_DIR_.self::MODULE_NAME.DIRECTORY_SEPARATOR.'log.txt';
+
+        // удалить большой лог
+        if (file_exists($path) && filesize($path) > Tools::convertBytes('2M')) {
+            @unlink($path);
+        }
+
         $this->logger = new FileLogger(FileLogger::DEBUG);
-        $this->logger->setFilename(_PS_MODULE_DIR_.self::MODULE_NAME.DIRECTORY_SEPARATOR.'log.txt');
+        $this->logger->setFilename($path);
     }
 
     public function fetch($key, $method, $url, $param, $badClassName, $file)
