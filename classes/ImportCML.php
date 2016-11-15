@@ -158,11 +158,12 @@ class ImportCML
             } else {
                 return false;
             }
-
+        }
+        $targetExists = $this->targetExists();
         // update Возможно сущность (без guid, идентификация на базе md5) уже сущетвует,
         // обновление не доступны для этого типа. При редактировании сущности в ERP связь с EntityCML будет утеряна,
         // запись останется в бд как мусор (необходимо найти способ удалить его)
-        } elseif ($targetExists = $this->targetExists() && $this->guid) {
+        if ($targetExists && $this->guid) {
             if (!$this->needUpd()) {
                 return true;
             }
