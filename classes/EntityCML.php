@@ -17,46 +17,27 @@ class EntityCML extends ObjectModel
     );
 
 
-    public static function getIdTarget($guid, $hash = null, $cache = false)
+    public static function getId($guid, $hash, $cache = false)
     {
         if (!$guid && !$hash) {
             throw new Exception('Должно быть задано одно из значиний guid или hash');
         }
-        $cacheId = $guid.$hash;
         $where = $guid ? "guid = '$guid'" : '';
-        $where .= $guid && $hash ? ' AND ' : '';
+        $where .= $guid && $hash ? ' OR ': '';
         $where .= $hash ? "hash = '$hash'" : '';
 
+        $cacheId = $guid.$hash;
         if ($cache && Cache::isStored($cacheId)) {
             return Cache::retrieve($cacheId);
         }
 
         $id = Db::getInstance()->getValue(
             (new DbQuery())
-                ->select('id_target')
+                ->select(self::$definition['primary'])
                 ->from(self::$definition['table'])
                 ->where($where)
         );
         $cache && $id && Cache::store($cacheId, $id);
         return $id;
-    }
-    public static function deleteByGuidOrHash($guid, $hash = null)
-    {
-        if (!$guid && !$hash) {
-            throw new Exception('Должно быть задано одно из значиний guid или hash');
-        }
-        $where = $guid ? "guid = '$guid'" : '';
-        $where .= $guid && $hash ? ' OR ' : '';
-        $where .= $hash ? "hash = '$hash'" : '';
-
-        return Db::getInstance()->delete(self::$definition['table'], $where);
-    }
-
-    public static function updHash($guid, $hash)
-    {
-        if (!$guid) {
-            throw new Exception('Guid is not set');
-        }
-        return DB::getInstance()->update(self::$definition['table'], array('hash' => $hash), "guid = '$guid'");
     }
 }

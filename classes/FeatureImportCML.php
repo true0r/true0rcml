@@ -13,7 +13,7 @@ class FeatureImportCML extends ImportCML
         }
         /** @var $this->xml->ВариантыЗначений SimpleXMLElement */
         if (isset($this->xml->ВариантыЗначений)) {
-            $fields = array('id_feature' => $this->idTarget);
+            $fields = array('id_feature' => $this->entity->id_target);
 
             if (isset($this->xml->ТипЗначений) && (string) $this->xml->ТипЗначений == 'Справочник') {
                 return self::walkChildren($this->xml->ВариантыЗначений, $fields);

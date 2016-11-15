@@ -41,7 +41,7 @@ class True0rCML extends Module
     public function getWarning()
     {
     }
-    protected function getConfValues()
+    public function getConfValues()
     {
         $link = $this->context->link->getAdminLink('AdminModules').'&configure='.$this->name
             .'&tab_module='.$this->tab.'&module_name='.$this->name.'&';

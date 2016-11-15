@@ -23,12 +23,11 @@ class ProductImportCML extends ImportCML
     {
         // Удалить обьект если он был удален в ERP
         if (self::getXmlElemAttrValue($this->xml, 'СтатусТип') == 'Удален') {
-            $this->setIdTarget();
-            if ($this->idTarget) {
-                EntityCML::deleteByGuidOrHash($this->guid, $this->hash);
+            if ($this->entity->id_target) {
                 if ($this->targetExists()) {
-                    (new Product($this->idTarget))->delete();
+                    (new Product($this->entity->id_target))->delete();
                 }
+                $this->entity->delete();
             }
             return true;
         }
@@ -44,8 +43,6 @@ class ProductImportCML extends ImportCML
             $upcOrEan13 = (string) $this->xml->Штрихкод;
             $fields[Tools::strlen($upcOrEan13) == 13 ? 'ean13' : 'upc'] = $upcOrEan13;
         }
-
-
 
         return array_merge($fields, parent::getCalcFields());
     }

@@ -35,10 +35,10 @@ class CategoryImportCML extends ImportCML
             (new DbQuery())
                 ->select('level_depth')
                 ->from(Category::$definition['table'])
-                ->where(Category::$definition['primary'].'='.$this->idTarget)
+                ->where(Category::$definition['primary'].'='.$this->entity->id_target)
         );
         $fields = array(
-            'id_parent' => $this->idTarget,
+            'id_parent' => $this->entity->id_target,
             'level_depth' => $levelDepthParent + 1,
         );
         return self::walkChildren($this->xml->Группы, $fields);
