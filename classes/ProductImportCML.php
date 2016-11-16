@@ -39,6 +39,15 @@ class ProductImportCML extends ImportCML
     {
         $fields = array();
 
+
+        if (isset($this->xml->ТорговаяМарка)) {
+            $fields['id_manufacturer']  = self::catchBall(
+                $this->xml->ТорговаяМарка->getName(),
+                null,
+                array('name' => (string) $this->xml->ТорговаяМарка)
+            );
+        }
+
         if (isset($this->xml->Штрихкод)) {
             $upcOrEan13 = (string) $this->xml->Штрихкод;
             $fields[Tools::strlen($upcOrEan13) == 13 ? 'ean13' : 'upc'] = $upcOrEan13;
