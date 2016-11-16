@@ -2,13 +2,16 @@
 
 class ImportCML
 {
-    public static $mapTargetClassName = array(
-        'Группа' => 'Category',
-        'Свойство' => 'Feature',
-        'Справочник' => 'FeatureValue',
-        'Значение' => 'FeatureValue',
-        'Товар' => 'Product',
-//        'Производитель' => 'Manufacturer',
+    /** @var  ImportCML[] */
+    private static $instance = array();
+    public static $mapTarget = array(
+        'Группа' => array('className' => 'Category', 'idClass' => 1, 'needWalk' => 1),
+        'Товар' => array('className' => 'Product', 'idClass' => 2, 'needWalk' => 1),
+        'Свойство' => array('className' => 'Feature', 'idClass' => 3, 'needWalk' => 1),
+        'Справочник' => array('className' => 'FeatureValue', 'idClass' => 4, 'needWalk' => 0),
+        'Значение' => array('className' => 'FeatureValue', 'idClass' => 4, 'needWalk' => 0),
+        'ТорговаяМарка' => array('className' => 'Manufacturer', 'idClass' => 5, 'needWalk' => 0),
+        'Картинка' => array('className' => 'Image', 'idClass' => 6, 'needWalk' => 0),
     );
     /**
      * @param bool $cache Флаг, хранить кеш? Cache::$local[$key] хранит только 1000 елементов, стоит хранить
@@ -19,6 +22,7 @@ class ImportCML
     public $hash;
 
     public $targetClassName;
+    public $targetIdClass;
     public $idElementName = 'Ид';
     public $guid;
     public $map = array();
@@ -37,11 +41,11 @@ class ImportCML
 
     public static function getInstance($entityCMLName)
     {
-        /** @var  ImportCML[] */
-        static $instance = array();
-
-        $targetClassName = self::$mapTargetClassName[$entityCMLName];
-        if (!isset($instance[$targetClassName])) {
+        if (!isset(self::$mapTarget[$entityCMLName])) {
+            throw new ImportCMLException("Сущность CML '$entityCMLName' не имеет ассоциации с целевым классом");
+        }
+        $targetClassName = self::$mapTarget[$entityCMLName]['className'];
+        if (!isset(self::$instance[$targetClassName])) {
             $importClassName = $targetClassName.__CLASS__;
             if (!class_exists($importClassName)) {
                 throw new ImportCMLException("Class $importClassName is not exists");
@@ -49,20 +53,40 @@ class ImportCML
             /** @var ImportCML $import */
             $import = new $importClassName();
             $import->targetClassName = $targetClassName;
-            $instance[$targetClassName] = $import;
+            $import->targetIdClass = self::$mapTarget[$entityCMLName]['idClass'];
+            self::$instance[$targetClassName] = $import;
+
             if (count($defaultFields = $import->getDefaultFields()) > 0) {
                 new HackObjectModel($defaultFields, $targetClassName);
             }
+
+            // Удалить сущность CML если целевой объект удален в магазине
+            $primary = EntityCML::$definition['primary'];
+            $table = EntityCML::$definition['table'];
+            $targetDef = $targetClassName::$definition;
+            Db::getInstance()->delete(
+                $table,
+                "$primary IN (
+                    SELECT tmp.$primary FROM (
+                        SELECT $primary FROM "._DB_PREFIX_."$table
+                        WHERE target_class = {$import->targetIdClass}
+                            AND id_target NOT IN (
+                                SELECT {$targetDef['primary']} FROM "._DB_PREFIX_.$targetDef['table']."
+                            )
+                    ) as tmp
+                )"
+            );
         }
 
-        return $instance[$targetClassName];
+        return self::$instance[$targetClassName];
     }
 
     /**
      * @param string
      * @param SimpleXMLElement $xml
      * @param array $fields
-     * @return bool
+     * @return int
+     * @throws ImportCMLException
      */
     public static function catchBall($entityCMLName, $xml, $fields = array())
     {
@@ -74,8 +98,18 @@ class ImportCML
         $import->fields = array();
 
         if ($xml) {
-            if (isset($xml->{$import->idElementName})) {
-                $import->guid = (string) $xml->{$import->idElementName};
+            if (isset($import->idElementName)) {
+                if (is_array($import->idElementName)) {
+                    foreach ($import->idElementName as $id) {
+                        $import->guid = isset($xml->{$id}) ? (string) $xml->{$id} : null;
+                        if ($import->guid) {
+                            break;
+                        }
+                    }
+                } else {
+                    $import->guid = isset($xml->{$import->idElementName})
+                        ? (string) $xml->{$import->idElementName} : null;
+                }
             }
 
             foreach ($import->map as $key => $val) {
@@ -86,12 +120,19 @@ class ImportCML
         // Убрать случайно попавшие поля, предотвратив случайное обновление и неправльный хеш
         $import->clearFields();
         ksort($import->fields);
-        $import->hash = md5(implode('', $import->fields));
+        $import->hash = $import->getHash();
         $import->entity = new EntityCML(EntityCML::getId($import->guid, $import->hash, $import->cache));
 
-        return $import->save();
+        if (!$import->save()) {
+            throw new ImportCMLException("Ошибка сохранения {$import->targetClassName}");
+        }
+        return $import->entity->id_target;
     }
 
+    public function getHash()
+    {
+        return md5(implode('', $this->fields));
+    }
     public function getDefaultFields()
     {
         return array();
@@ -142,31 +183,24 @@ class ImportCML
         }
 
         $entity = $this->entity;
-        /** @var ObjectModel $targetClass */
-        $targetClass = null;
-
-        // add target and entityCML
+        // add
         if (!$entity->id) {
+            /** @var ObjectModel $targetClass */
             $targetClass = new $this->targetClassName();
             // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
             $targetClass->hydrate($this->fields, $idLangDefault);
-            if ($targetClass->add()) {
-                $entity->id_target = $targetClass->id;
-                $entity->guid = $this->guid;
-                $entity->hash = $this->hash;
-                return $entity->add();
-            } else {
+            if (!$targetClass->add()) {
                 return false;
             }
-        }
-        $targetExists = $this->targetExists();
-        // update Возможно сущность (без guid, идентификация на базе md5) уже сущетвует,
-        // обновление не доступны для этого типа. При редактировании сущности в ERP связь с EntityCML будет утеряна,
-        // запись останется в бд как мусор (необходимо найти способ удалить его)
-        if ($targetExists && $this->guid) {
-            if (!$this->needUpd()) {
-                return true;
-            }
+            $entity->id_target = $targetClass->id;
+            $entity->target_class = $this->targetIdClass;
+            $entity->guid = $this->guid;
+            $entity->hash = $this->hash;
+            return $entity->add();
+
+        // update
+        } elseif ($this->needUpd()) {
+            /** @var ObjectModel $targetClass */
             $targetClass = new $this->targetClassName($entity->id_target);
             $fieldsToUpdate = array();
             foreach ($this->fields as $key => $value) {
@@ -191,39 +225,13 @@ class ImportCML
             $entity->hash = $this->hash;
             $entity->setFieldsToUpdate(array('hash' => true));
             return $entity->update();
-
-        // recovery Восстановить объект если был удален в магазине
-        } elseif (!$targetExists) {
-            $targetClass = new $this->targetClassName();
-            $targetClass->hydrate($this->fields, $idLangDefault);
-            if (!$targetClass->add()) {
-                return false;
-            }
-            $entity->id_target = $targetClass->id;
-            $entity->setFieldsToUpdate(array('id_target' => true));
-            return $entity->update();
         }
-
         return true;
     }
 
     public function needUpd()
     {
         return $this->hash != $this->entity->hash;
-    }
-
-    public function targetExists()
-    {
-        if (!$this->entity->id_target) {
-            throw new Exception('Id target is not set');
-        }
-        $targetClass = $this->targetClassName;
-        return (bool) Db::getInstance()->getValue(
-            (new DbQuery())
-                ->select('COUNT(*)')
-                ->from($targetClass::$definition['table'])
-                ->where($targetClass::$definition['primary']." = '{$this->entity->id_target}'")
-        );
     }
 
     /**

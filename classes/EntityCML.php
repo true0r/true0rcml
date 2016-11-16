@@ -3,6 +3,7 @@
 class EntityCML extends ObjectModel
 {
     public $id_target;
+    public $target_class;
     public $hash;
     public $guid;
 
@@ -11,6 +12,7 @@ class EntityCML extends ObjectModel
         'primary' => 'id_entitycml',
         'fields' => array(
             'id_target' => array('type' => self::TYPE_INT, 'validate' => 'isUnsignedId', 'required' => true),
+            'target_class' => array('type' => self::TYPE_INT, 'validate' => 'isUnsignedId', 'required' => true),
             'hash' => array('type' => self::TYPE_STRING, 'required' => true, 'size' => 32),
             'guid' => array('type' => self::TYPE_STRING, 'size' => 80),
         ),

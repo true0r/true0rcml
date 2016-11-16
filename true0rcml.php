@@ -126,6 +126,7 @@ class True0rCML extends Module
             'CREATE TABLE IF NOT EXISTS '._DB_PREFIX_.EntityCML::$definition['table'].' (
                 `id_entitycml` int(10) unsigned NOT NULL auto_increment,
                 `id_target` int(10) unsigned NOT NULL,
+                `target_class` int(2) unsigned NOT NULL,
                 `guid` varchar(80),
                 `hash` varchar(32) NOT NULL,
                 PRIMARY KEY (`id_entitycml`)

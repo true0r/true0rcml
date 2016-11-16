@@ -2,6 +2,7 @@
 
 class ProductImportCML extends ImportCML
 {
+    public $idElementName = array('Ид', 'Штрихкод', 'Артикул');
     public $cache = false;
 
     public $map = array(
@@ -9,7 +10,6 @@ class ProductImportCML extends ImportCML
 
         'name' => 'Наименование',
         'description' => 'Описание',
-//        'description_short' => '',
     );
 
     public function __construct()
@@ -24,9 +24,7 @@ class ProductImportCML extends ImportCML
         // Удалить обьект если он был удален в ERP
         if (self::getXmlElemAttrValue($this->xml, 'СтатусТип') == 'Удален') {
             if ($this->entity->id_target) {
-                if ($this->targetExists()) {
-                    (new Product($this->entity->id_target))->delete();
-                }
+                (new Product($this->entity->id_target))->delete();
                 $this->entity->delete();
             }
             return true;

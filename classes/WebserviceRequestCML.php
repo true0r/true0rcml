@@ -153,7 +153,8 @@ class WebserviceRequestCML
                     continue;
                 }
                 $name = $xmlReader->localName;
-                if (array_key_exists($name, ImportCML::$mapTargetClassName)) {
+                if (array_key_exists($name, ImportCML::$mapTarget)
+                    && ImportCML::$mapTarget[$name]['needWalk']) {
                     $xmlSimple = new SimpleXMLElement($xmlReader->readOuterXml());
                     /** @var ImportCML $class */
                     if (!ImportCML::catchBall($name, $xmlSimple)) {
