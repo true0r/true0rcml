@@ -2,7 +2,7 @@
 
 class ManufacturerImportCML extends ImportCML
 {
-    public $idElementName = null;
+    public $idEntityCMLName = null;
 
     public function getDefaultFields()
     {

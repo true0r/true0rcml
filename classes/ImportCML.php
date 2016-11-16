@@ -23,8 +23,8 @@ class ImportCML
 
     public $targetClassName;
     public $targetIdClass;
-    public $idElementName = 'Ид';
-    public $guid;
+    public $idEntityCMLName = 'Ид';
+    public $idEntityCML;
     public $map = array();
     public $fields = array();
 
@@ -95,22 +95,22 @@ class ImportCML
         $import = self::getInstance($entityCMLName);
         $import->count++;
         $import->xml = $xml;
-        $import->guid = null;
+        $import->idEntityCML = null;
         $import->entity = null;
         $import->fields = array();
 
         if ($xml) {
-            if (isset($import->idElementName)) {
-                if (is_array($import->idElementName)) {
-                    foreach ($import->idElementName as $id) {
-                        $import->guid = isset($xml->{$id}) ? (string) $xml->{$id} : null;
-                        if ($import->guid) {
+            if (isset($import->idEntityCMLName)) {
+                if (is_array($import->idEntityCMLName)) {
+                    foreach ($import->idEntityCMLName as $id) {
+                        $import->idEntityCML = isset($xml->{$id}) ? (string) $xml->{$id} : null;
+                        if ($import->idEntityCML) {
                             break;
                         }
                     }
                 } else {
-                    $import->guid = isset($xml->{$import->idElementName})
-                        ? (string) $xml->{$import->idElementName} : null;
+                    $import->idEntityCML = isset($xml->{$import->idEntityCMLName})
+                        ? (string) $xml->{$import->idEntityCMLName} : null;
                 }
             }
 
@@ -123,7 +123,7 @@ class ImportCML
         $import->clearFields();
         ksort($import->fields);
         $import->hash = $import->getHash();
-        $import->entity = new EntityCML(EntityCML::getId($import->guid, $import->hash, $import->cache));
+        $import->entity = new EntityCML(EntityCML::getId($import->idEntityCML, $import->hash, $import->cache));
 
         if (!$import->save()) {
             throw new ImportCMLException("Ошибка сохранения {$import->targetClassName}");
@@ -210,7 +210,7 @@ class ImportCML
             }
             $entity->id_target = $targetClass->id;
             $entity->target_class = $this->targetIdClass;
-            $entity->guid = $this->guid;
+            $entity->guid = $this->idEntityCML;
             $entity->hash = $this->hash;
             return $entity->add();
 

@@ -2,7 +2,7 @@
 
 class FeatureValueImportCML extends ImportCML
 {
-    public $idElementName = 'ИдЗначения';
+    public $idEntityCMLName = 'ИдЗначения';
     public $map = array(
         'value' => 'Значение',
     );

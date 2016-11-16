@@ -2,7 +2,7 @@
 
 class ProductImportCML extends ImportCML
 {
-    public $idElementName = array('Ид', 'Штрихкод', 'Артикул');
+    public $idEntityCMLName = array('Ид', 'Штрихкод', 'Артикул');
     public $cache = false;
 
     public $map = array(
