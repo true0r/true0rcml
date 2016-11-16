@@ -165,8 +165,10 @@ class WebserviceRequestCML
                 }
             }
             $xmlReader->close();
+
             $stats =
-                "Peak memory: ".(memory_get_peak_usage(true) / 1024 / 1024)
+                ImportCML::getStats()
+                ."Peak memory: ".(memory_get_peak_usage(true) / 1024 / 1024)
                 ."MB Time: ".(microtime(true) - $startTime);
             $this->success = "Импорт выполнен успешно ".$stats;
         } catch (Exception $e) {

@@ -28,6 +28,7 @@ class ImportCML
     public $map = array();
     public $fields = array();
 
+    public $count = 0;
 
     /** @var SimpleXMLElement */
     public $xml;
@@ -92,6 +93,7 @@ class ImportCML
     {
         /** @var ImportCML $import */
         $import = self::getInstance($entityCMLName);
+        $import->count++;
         $import->xml = $xml;
         $import->guid = null;
         $import->entity = null;
@@ -127,6 +129,20 @@ class ImportCML
             throw new ImportCMLException("Ошибка сохранения {$import->targetClassName}");
         }
         return $import->entity->id_target;
+    }
+    public static function getStats()
+    {
+        $stats = 'Import: ';
+        $countAll = 0;
+        foreach (self::$mapTarget as $entity => $target) {
+            if (isset(self::$instance[$target['className']]) && !in_array($entity, array('Справочник'))) {
+                $count = self::$instance[$target['className']]->count;
+                $stats .= "$entity/$count, ";
+                $countAll += $count;
+            }
+        }
+        $stats .= "All/$countAll, ";
+        return $stats;
     }
 
     public function getHash()
