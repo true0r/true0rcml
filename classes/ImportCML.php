@@ -28,6 +28,7 @@ class ImportCML
     public $map = array();
     public $fields = array();
 
+    public $idLangDefault;
     public $count = 0;
 
     /** @var SimpleXMLElement */
@@ -38,6 +39,7 @@ class ImportCML
 
     protected function __construct()
     {
+        $this->idLangDefault = (int) Configuration::get('PS_LANG_DEFAULT');
     }
 
     public static function getInstance($entityCMLName)
@@ -188,14 +190,8 @@ class ImportCML
 
     public function save()
     {
-        static $idLangDefault;
-
         if (!isset($this->fields) || !count($this->fields)) {
             throw new ImportCMLException('Сперва выполните инициализацию целевого объекта');
-        }
-
-        if (!isset($idLangDefault)) {
-            $idLangDefault = (int) Configuration::get('PS_LANG_DEFAULT');
         }
 
         $entity = $this->entity;
@@ -204,7 +200,8 @@ class ImportCML
             /** @var ObjectModel $targetClass */
             $targetClass = new $this->targetClassName();
             // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
-            $targetClass->hydrate($this->fields, $idLangDefault);
+            $targetClass->hydrate($this->fields, $this->idLangDefault);
+            $this->modTargetClass($targetClass);
             if (!$targetClass->add()) {
                 return false;
             }
@@ -222,9 +219,9 @@ class ImportCML
             foreach ($this->fields as $key => $value) {
                 // field lang
                 if (!empty($targetClass::$definition['fields'][$key]['lang'])) {
-                    if (!isset($targetClass->{$key}[$idLangDefault])
-                        || $targetClass->{$key}[$idLangDefault] != $value) {
-                        $fieldsToUpdate[$key][$idLangDefault] = true;
+                    if (!isset($targetClass->{$key}[$this->idLangDefault])
+                        || $targetClass->{$key}[$this->idLangDefault] != $value) {
+                        $fieldsToUpdate[$key][$this->idLangDefault] = true;
                     }
                 } elseif ($targetClass->{$key} != $value) {
                     $fieldsToUpdate[$key] = true;
@@ -233,7 +230,8 @@ class ImportCML
             // Возможно хеш изменился из за изменений в алгоритме обработки свойств, но целевой обьект нет
             if (count($fieldsToUpdate) > 0) {
                 $targetClass->setFieldsToUpdate($fieldsToUpdate);
-                $targetClass->hydrate($this->fields, $idLangDefault);
+                $targetClass->hydrate($this->fields, $this->idLangDefault);
+                $this->modTargetClass($targetClass);
                 if (!$targetClass->update()) {
                     return false;
                 }
@@ -266,6 +264,12 @@ class ImportCML
         }
         return true;
     }
+
+    /** @param ObjectModel $target */
+    public function modTargetClass($target)
+    {
+    }
+
     /**
      * @param SimpleXMLElement $xml
      * @param string $name

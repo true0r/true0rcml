@@ -43,4 +43,22 @@ class CategoryImportCML extends ImportCML
         );
         return self::walkChildren($this->xml->Группы, $fields);
     }
+
+    /** @param Category $target */
+    public function modTargetClass($target)
+    {
+        static $groupBox = array();
+
+        if (empty($groupBox)) {
+            $groupBox = array();
+            $groups = Group::getGroups($this->idLangDefault);
+            foreach ($groups as $group) {
+                $groupBox[] = $group['id_group'];
+            }
+        }
+
+        if (!$target->id) {
+            $target->groupBox = $groupBox;
+        }
+    }
 }
