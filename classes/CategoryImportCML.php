@@ -44,8 +44,7 @@ class CategoryImportCML extends ImportCML
         return self::walkChildren($this->xml->Группы, $fields);
     }
 
-    /** @param Category $target */
-    public function modTargetClass($target)
+    public function modTargetClass()
     {
         static $groupBox = array();
 
@@ -57,8 +56,8 @@ class CategoryImportCML extends ImportCML
             }
         }
 
-        if (!$target->id) {
-            $target->groupBox = $groupBox;
+        if (!$this->targetClass->id) {
+            $this->targetClass->groupBox = $groupBox;
         }
     }
 }

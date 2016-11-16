@@ -30,6 +30,20 @@ class ProductImportCML extends ImportCML
             return true;
         }
 //        return parent::save();
+
+        if (isset($this->xml->Картинка)) {
+            $idProduct = $this->entity->id_target;
+            $fields = array('id_product' => $idProduct);
+            $position = Image::getHighestPosition($idProduct);
+            $cover = !Image::hasImages($this->idLangDefault, $idProduct);
+
+            foreach ($this->xml->Картинка as $img) {
+                $fields['position'] = ++$position;
+                $fields['cover'] = $cover;
+                $cover && $cover = false;
+                ImportCML::catchBall($img->getName(), $img, $fields);
+            }
+        }
         return true;
     }
 

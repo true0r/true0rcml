@@ -23,6 +23,8 @@ class ImportCML
 
     public $targetClassName;
     public $targetIdClass;
+    /** @var ObjectModel $targetClass */
+    public $targetClass;
     public $idEntityCMLName = 'Ид';
     public $idEntityCML;
     public $map = array();
@@ -98,6 +100,7 @@ class ImportCML
         $import->count++;
         $import->xml = $xml;
         $import->idEntityCML = null;
+        $import->targetClass = null;
         $import->entity = null;
         $import->fields = array();
 
@@ -124,7 +127,7 @@ class ImportCML
         // Убрать случайно попавшие поля, предотвратив случайное обновление и неправльный хеш
         $import->clearFields();
         ksort($import->fields);
-        $import->hash = $import->getHash();
+        $import->setHash();
         $import->entity = new EntityCML(EntityCML::getId($import->idEntityCML, $import->hash, $import->cache));
 
         if (!$import->save()) {
@@ -147,9 +150,9 @@ class ImportCML
         return $stats;
     }
 
-    public function getHash()
+    public function setHash()
     {
-        return md5(implode('', $this->fields));
+        $this->hash = md5(implode('', $this->fields));
     }
     public function getDefaultFields()
     {
@@ -198,10 +201,10 @@ class ImportCML
         // add
         if (!$entity->id) {
             /** @var ObjectModel $targetClass */
-            $targetClass = new $this->targetClassName();
+            $this->targetClass = $targetClass = new $this->targetClassName();
             // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
             $targetClass->hydrate($this->fields, $this->idLangDefault);
-            $this->modTargetClass($targetClass);
+            $this->modTargetClass();
             if (!$targetClass->add()) {
                 return false;
             }
@@ -214,7 +217,7 @@ class ImportCML
         // update
         } elseif ($this->needUpd()) {
             /** @var ObjectModel $targetClass */
-            $targetClass = new $this->targetClassName($entity->id_target);
+            $this->targetClass = $targetClass = new $this->targetClassName($entity->id_target);
             $fieldsToUpdate = array();
             foreach ($this->fields as $key => $value) {
                 // field lang
@@ -231,7 +234,7 @@ class ImportCML
             if (count($fieldsToUpdate) > 0) {
                 $targetClass->setFieldsToUpdate($fieldsToUpdate);
                 $targetClass->hydrate($this->fields, $this->idLangDefault);
-                $this->modTargetClass($targetClass);
+                $this->modTargetClass();
                 if (!$targetClass->update()) {
                     return false;
                 }
@@ -266,7 +269,7 @@ class ImportCML
     }
 
     /** @param ObjectModel $target */
-    public function modTargetClass($target)
+    public function modTargetClass()
     {
     }
 
