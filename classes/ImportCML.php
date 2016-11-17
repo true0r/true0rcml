@@ -126,7 +126,6 @@ class ImportCML
         $import->fields = array_merge($import->fields, $fields, $import->getCalcFields());
         // Убрать случайно попавшие поля, предотвратив случайное обновление и неправльный хеш
         $import->clearFields();
-        ksort($import->fields);
         $import->setHash();
         $import->entity = new EntityCML(EntityCML::getId($import->idEntityCML, $import->hash, $import->cache));
 
@@ -152,6 +151,7 @@ class ImportCML
 
     public function setHash()
     {
+        ksort($this->fields);
         $this->hash = md5(implode('', $this->fields));
     }
     public function getDefaultFields()
@@ -204,7 +204,7 @@ class ImportCML
             $this->targetClass = $targetClass = new $this->targetClassName();
             // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
             $targetClass->hydrate($this->fields, $this->idLangDefault);
-            $this->modTargetClass();
+            $this->modTargetBeforeAdd();
             if (!$targetClass->add()) {
                 return false;
             }
@@ -234,7 +234,8 @@ class ImportCML
             if (count($fieldsToUpdate) > 0) {
                 $targetClass->setFieldsToUpdate($fieldsToUpdate);
                 $targetClass->hydrate($this->fields, $this->idLangDefault);
-                $this->modTargetClass();
+                // $targetClass->update_fields is protected
+                $this->modTargetBeforeUpd($fieldsToUpdate);
                 if (!$targetClass->update()) {
                     return false;
                 }
@@ -268,11 +269,12 @@ class ImportCML
         return true;
     }
 
-    /** @param ObjectModel $target */
-    public function modTargetClass()
+    public function modTargetBeforeAdd()
     {
     }
-
+    public function modTargetBeforeUpd($fieldsToUpdate)
+    {
+    }
     /**
      * @param SimpleXMLElement $xml
      * @param string $name

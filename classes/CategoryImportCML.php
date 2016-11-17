@@ -44,7 +44,7 @@ class CategoryImportCML extends ImportCML
         return self::walkChildren($this->xml->Группы, $fields);
     }
 
-    public function modTargetClass()
+    public function modTargetBeforeAdd()
     {
         static $groupBox = array();
 
@@ -56,8 +56,7 @@ class CategoryImportCML extends ImportCML
             }
         }
 
-        if (!$this->targetClass->id) {
-            $this->targetClass->groupBox = $groupBox;
-        }
+        // Ассоциация категории со всемы груапами пользователей
+        $this->targetClass->groupBox = $groupBox;
     }
 }

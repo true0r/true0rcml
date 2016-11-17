@@ -18,28 +18,38 @@ class EntityCML extends ObjectModel
         ),
     );
 
-
-    public static function getId($guid, $hash, $cache = false)
+    public static function getIdEntityCMLAndTarget($guid, $hash, $cache = false)
     {
         if (!$guid && !$hash) {
             throw new Exception('Должно быть задано одно из значиний guid или hash');
         }
-        $where = $guid ? "guid = '$guid'" : '';
-        $where .= $guid && $hash ? ' OR ': '';
-        $where .= $hash ? "hash = '$hash'" : '';
 
-        $cacheId = $guid.$hash;
-        if ($cache && Cache::isStored($cacheId)) {
+        $cacheId = $guid ? $guid : $hash;
+        if (Cache::isStored($cacheId)) {
             return Cache::retrieve($cacheId);
         }
 
-        $id = Db::getInstance()->getValue(
+        $ids = Db::getInstance()->getRow(
             (new DbQuery())
-                ->select(self::$definition['primary'])
+                ->select(self::$definition['primary'].', id_target')
                 ->from(self::$definition['table'])
-                ->where($where)
+                ->where($guid ? "guid = '$guid'" : "hash = '$hash'")
         );
-        $cache && $id && Cache::store($cacheId, $id);
-        return $id;
+        if ($ids) {
+            $cache && Cache::store($cacheId, $ids);
+            return $ids;
+        }
+        return false;
+    }
+
+    public static function getId($guid, $hash, $cache = false)
+    {
+        $ids = self::getIdEntityCMLAndTarget($guid, $hash, $cache);
+        return $ids ? (int) $ids[self::$definition['primary']] : false;
+    }
+    public static function getIdTarget($guid, $hash, $cache = false)
+    {
+        $ids = self::getIdEntityCMLAndTarget($guid, $hash, $cache);
+        return $ids ? (int) $ids['id_target'] : false;
     }
 }
