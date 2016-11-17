@@ -6,7 +6,9 @@ class ImageImportCML extends ImportCML
 
     public function setHash()
     {
-        $this->hash = md5((string) $this->xml);
+        // Если учитывать position, тогда каждый импорт будет создавать новое изображение, так как позиция изменяется
+        // В случаи если упустить id_product, то изображение не будет созданно для товара который был восстановлен
+        $this->hash = md5($this->fields['id_product'].(string) $this->xml);
     }
 
     public function save()
