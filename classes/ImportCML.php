@@ -97,7 +97,6 @@ class ImportCML
     {
         /** @var ImportCML $import */
         $import = self::getInstance($entityCMLName);
-        $import->count++;
         $import->xml = $xml;
         $import->idEntityCML = null;
         $import->targetClass = null;
@@ -131,6 +130,10 @@ class ImportCML
 
         if (!$import->save()) {
             throw new ImportCMLException("Ошибка сохранения {$import->targetClassName}");
+        }
+        // Считать только те объекты которые были добалвены или обновлены
+        if ($import->targetClass) {
+            $import->count++;
         }
         return $import->entity->id_target;
     }
