@@ -31,7 +31,8 @@ class ImportCML
     public $fields = array();
 
     public $idLangDefault;
-    public $count = 0;
+    public $countUpd = 0;
+    public $countAdd = 0;
 
     /** @var SimpleXMLElement */
     public $xml;
@@ -131,10 +132,6 @@ class ImportCML
         if (!$import->save()) {
             throw new ImportCMLException("Ошибка сохранения {$import->targetClassName}");
         }
-        // Считать только те объекты которые были добалвены или обновлены
-        if ($import->targetClass) {
-            $import->count++;
-        }
         return $import->entity->id_target;
     }
 
@@ -149,16 +146,21 @@ class ImportCML
 
     public static function getStats()
     {
-        $stats = 'Import: ';
-        $countAll = 0;
+        $stats = 'Import (Entity Add/Upd): ';
+        $countAllUpd = 0;
+        $countAllAdd = 0;
         foreach (self::$mapTarget as $entity => $target) {
             if (isset(self::$instance[$target['className']]) && !in_array($entity, array('Справочник'))) {
-                $count = self::$instance[$target['className']]->count;
-                $stats .= "$entity/$count, ";
-                $countAll += $count;
+                $countUpd = self::$instance[$target['className']]->countUpd;
+                $countAdd = self::$instance[$target['className']]->countAdd;
+                if ($countUpd || $countAdd) {
+                    $stats .= "$entity $countAdd/$countUpd, ";
+                    $countAllUpd += $countUpd;
+                    $countAllAdd += $countAdd;
+                }
             }
         }
-        $stats .= "All/$countAll, ";
+        $stats .= "All $countAllAdd/$countAllUpd, ";
         return $stats;
     }
 
@@ -213,6 +215,7 @@ class ImportCML
         $entity = $this->entity;
         // add
         if (!$entity->id) {
+            $this->countAdd++;
             /** @var ObjectModel $targetClass */
             $this->targetClass = $targetClass = new $this->targetClassName();
             // Установить id_lang, необходимо для правильной работы со свойтвами на нескольких языках
@@ -229,6 +232,7 @@ class ImportCML
 
         // update
         } elseif ($this->needUpd()) {
+            $this->countUpd++;
             /** @var ObjectModel $targetClass */
             $this->targetClass = $targetClass = new $this->targetClassName($entity->id_target);
             $fieldsToUpdate = array();
