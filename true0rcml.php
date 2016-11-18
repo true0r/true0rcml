@@ -49,7 +49,7 @@ class True0rCML extends Module
         return array(
             'title' => $this->displayName,
             'wsKey' => $this->getWsKey(),
-            'link' => $this->context->link->getBaseLink()."api/",
+            'link' => $this->context->link->getBaseLink()."api",
             'linkAction' => array(
                 'newWsKey' => $link.'new_ws_key',
             )
