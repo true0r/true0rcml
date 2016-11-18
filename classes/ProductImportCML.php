@@ -72,6 +72,11 @@ class ProductImportCML extends ImportCML
             $cover = !Image::hasImages($this->idLangDefault, $idProduct);
 
             foreach ($this->xml->Картинка as $img) {
+                // Если выбрана опция не загружать картинки во время синхронизации, тогда игнорировать изображения
+                $path = WebserviceRequestCML::getInstance()->uploadDir.(string) $img;
+                if (!file_exists($path)) {
+                    break;
+                }
                 $fields['position'] = ++$position;
                 $fields['cover'] = $cover;
                 $cover && $cover = false;
