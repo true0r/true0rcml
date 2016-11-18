@@ -165,7 +165,7 @@ class WebserviceRequestCML
                 }
             }
             $xmlReader->close();
-            ImportCML::postImport();
+            ImportCML::runPostImport();
             $stats =
                 ImportCML::getStats()
                 ."Peak memory: ".(memory_get_peak_usage(true) / 1024 / 1024)

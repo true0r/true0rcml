@@ -138,7 +138,7 @@ class ImportCML
         return $import->entity->id_target;
     }
 
-    public static function postImport()
+    public static function runPostImport()
     {
         foreach (self::$instance as $instance) {
             if (method_exists($instance, 'postImport')) {
