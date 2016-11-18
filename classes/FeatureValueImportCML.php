@@ -17,14 +17,17 @@ class FeatureValueImportCML extends ImportCML
             return Cache::retrieve($cacheId);
         }
 
-        if ((!$idFeature = EntityCML::getIdTarget($guid, null, true))) {
-            throw new ImportCMLException('Свойство товара не существует');
+        if (!$idFeatureValue = EntityCML::getIdTarget($value, null, true)) {
+            if ((!$idFeature = EntityCML::getIdTarget($guid, null, true))) {
+                throw new ImportCMLException('Свойство товара не существует');
+            }
+
+            $fields = array('id_feature' => $idFeature, 'value' => $value);
+            if (!$idFeatureValue = self::catchBall('Значение', null, $fields)) {
+                throw new ImportCMLException('Значение свойства не было создано');
+            }
         }
 
-        $fields = array('id_feature' => $idFeature, 'value' => $value);
-        if (!$idFeatureValue = self::catchBall('Значение', null, $fields)) {
-            throw new ImportCMLException('Значение свойства не было создано');
-        }
         Cache::store($cacheId, $idFeatureValue);
         return $idFeatureValue;
     }
