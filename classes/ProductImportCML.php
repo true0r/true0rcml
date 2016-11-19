@@ -29,6 +29,7 @@ class ProductImportCML extends ImportCML
 
     public function save()
     {
+        static $syncWithuotImg = false;
         // Удалить обьект если он был удален в ERP
         if (self::getXmlElemAttrValue($this->xml, 'СтатусТип') == 'Удален') {
             if ($this->entity->id_target) {
@@ -66,7 +67,7 @@ class ProductImportCML extends ImportCML
             }
         }
 
-        if (isset($this->xml->Картинка)) {
+        if (!$syncWithuotImg && isset($this->xml->Картинка)) {
             $fields = array('id_product' => $idProduct);
             $position = Image::getHighestPosition($idProduct);
             $cover = !Image::hasImages($this->idLangDefault, $idProduct);
@@ -75,6 +76,7 @@ class ProductImportCML extends ImportCML
                 // Если выбрана опция не загружать картинки во время синхронизации, тогда игнорировать изображения
                 $path = WebserviceRequestCML::getInstance()->uploadDir.(string) $img;
                 if (!file_exists($path)) {
+                    $syncWithuotImg = true;
                     break;
                 }
                 $fields['position'] = ++$position;
@@ -86,31 +88,31 @@ class ProductImportCML extends ImportCML
 
         if (Feature::isFeatureActive()) {
             if (isset($this->xml->ЗначенияСвойств)) {
-                $idsFeatureValue = array();
+                $featureValue = array();
                 // $feature (ЗначенияСвойства)
                 foreach ($this->xml->ЗначенияСвойств->children() as $feature) {
                     if ($value = (string) $feature->Значение) {
-                        $idsFeatureValue[] = FeatureValueImportCML::getIdFeatureValue((string) $feature->Ид, $value);
+                        $featureValue[] = FeatureValueImportCML::getIdFeatureValue((string) $feature->Ид, $value);
                     }
                 }
-                if ($idsFeatureValue) {
-                    $idsFeatureValue = array_unique($idsFeatureValue);
+                $featureValue = array_unique($featureValue);
 
-                    $oldIdsFeatureValue = array();
-                    foreach (Product::getFeaturesStatic($idProduct) as $row) {
-                        $oldIdsFeatureValue[] = $row['id_feature_value'];
-                    }
-                    if (array_diff($idsFeatureValue, $oldIdsFeatureValue)) {
-                        $db->delete('feature_product', "id_product = $idProduct");
-                        $db->execute(
-                            "INSERT INTO "._DB_PREFIX_."feature_product (id_feature, id_product, id_feature_value)
-                            SELECT id_feature, $idProduct, id_feature_value
-                            FROM "._DB_PREFIX_."feature_value
-                            WHERE id_feature_value IN (".implode(', ', $idsFeatureValue).")"
-                        );
+                $oldFeatureValue = array();
+                foreach (Product::getFeaturesStatic($idProduct) as $row) {
+                    $oldFeatureValue[] = $row['id_feature_value'];
+                }
+                $newFeatureValue = array_diff($featureValue, $oldFeatureValue);
+                $delFeatureValue = array_diff($oldFeatureValue, $featureValue);
+                if ($newFeatureValue || $delFeatureValue) {
+                    $db->delete('feature_product', "id_product = $idProduct");
+                    $db->execute(
+                        "INSERT INTO "._DB_PREFIX_."feature_product (id_feature, id_product, id_feature_value)
+                        SELECT id_feature, $idProduct, id_feature_value
+                        FROM "._DB_PREFIX_."feature_value
+                        WHERE id_feature_value IN (".implode(', ', $featureValue).")"
+                    );
 
-                        self::$prodToUpdSpecPriceRule[] = $idProduct;
-                    }
+                    self::$prodToUpdSpecPriceRule[] = $idProduct;
                 }
             }
         }
