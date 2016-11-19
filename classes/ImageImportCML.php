@@ -110,6 +110,9 @@ class ImageImportCML extends ImportCML
 
         // Hook::exec('actionWatermark', array('id_image' => $img->id, 'id_product' => $img->id_product));
 
+        $shops = Shop::getContextListShopID();
+        $img->associateTo($shops);
+
         return true;
     }
 }
