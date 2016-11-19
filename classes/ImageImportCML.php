@@ -78,7 +78,38 @@ class ImageImportCML extends ImportCML
         } elseif (!@rename($oldPath, $newPath)) {
             throw new ImportCMLException('Не могу сохранить изображение товара');
         }
-        // todo ??? resize image
+
+
+        $generateNewImage = (bool) Configuration::get(WebserviceRequestCML::MODULE_NAME.'-generateNewImage');
+        if (!$generateNewImage) {
+            return true;
+        }
+
+        $generateHightDpiImages = (bool) Configuration::get('PS_HIGHT_DPI');
+        $imageType = ImageType::getImagesTypes('products');
+        $existingPath = _PS_PROD_IMG_DIR_.$img->getImgPath();
+        $existingImg = "$existingPath.jpg";
+
+        if (!file_exists($existingImg) && !filesize($existingImg)) {
+            throw new ImportCMLException("Не могу сгенерировать изображение товара, $existingImg не существует");
+        }
+        foreach ($imageType as $type) {
+            $newImg = $existingPath.'-'.stripcslashes($type['name']).'.'.$img->image_format;
+            if (file_exists($newImg)) {
+                continue;
+            }
+            if (!ImageManager::resize($existingImg, $newImg, (int) $type['width'], (int) $type['height'])) {
+                throw new ImportCMLException("Ошибка генерации изображения товара $newImg");
+            } elseif ($generateHightDpiImages) {
+                $newImg = $existingPath.'-'.stripcslashes($type['name']).'2x.'.$img->image_format;
+                if (!ImageManager::resize($existingImg, $newImg, (int) $type['width'] * 2, (int) $type['height'] * 2)) {
+                    throw new ImportCMLException("Ошибка генерации HIGHT_DPI изображения товара $newImg");
+                }
+            }
+        }
+
+        // Hook::exec('actionWatermark', array('id_image' => $img->id, 'id_product' => $img->id_product));
+
         return true;
     }
 }
