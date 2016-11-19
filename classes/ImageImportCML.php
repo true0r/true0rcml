@@ -66,7 +66,7 @@ class ImageImportCML extends ImportCML
             $img->delete();
             throw new ImportCMLException('Изображение товара имеет неверный формат или не является изображением');
         }
-        $newPath = $img->getPathForCreation().".$ext";
+        $newPath = $img->getPathForCreation().'.'.$img->image_format;
 
         // AdminImagesController::_regenerateNewImages() работает только с jpg
         if ($ext != 'jpg') {
