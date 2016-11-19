@@ -128,23 +128,29 @@ class WebserviceRequestCML
 
         $pathImport = $this->uploadDir.$this->param['filename'];
         if (!file_exists($pathImport)) {
-            foreach (scandir($this->uploadDir) as $file) {
-                if ($file[0] != '.' && 'zip' === pathinfo($file, PATHINFO_EXTENSION)) {
-                    if (true === ($zip = new ZipArchive())->open($this->uploadDir.$file)) {
-                        if (!$zip->extractTo($this->uploadDir)) {
-                            $this->error = "Ошибка распаковки zip архива $file";
+            if (!file_exists($this->uploadDir)) {
+                $this->error = 'Файлы импорта не загружены';
+            } else {
+                foreach (scandir($this->uploadDir) as $file) {
+                    if ($file[0] != '.' && 'zip' === pathinfo($file, PATHINFO_EXTENSION)) {
+                        if (true === ($zip = new ZipArchive())->open($this->uploadDir.$file)) {
+                            if (!$zip->extractTo($this->uploadDir)) {
+                                $this->error = "Ошибка распаковки zip архива $file";
+                            } else {
+                                $this->success = "Zip архив загружен и распакован $file";
+                            }
+                            $zip->close();
+                            @unlink($this->uploadDir.$file);
                         } else {
-                            $this->success = "Zip архив загружен и распакован $file";
+                            $this->error = "Не могу открыть zip архив $file";
                         }
-                        $zip->close();
-                        @unlink($this->uploadDir.$file);
-                    } else {
-                        $this->error = "Не могу открыть zip архив $file";
                     }
                 }
             }
         }
-
+        if ($this->error) {
+            return;
+        }
         // Не делаю проверку на валидность схеме XML, так как к примеру в украинской редакции
         // испльзуется не стандартный элемент ЕДРПОУ вместо ЕГРПО, также возможны модификации
         $xmlReader = new XMLReader();
