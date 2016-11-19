@@ -128,7 +128,7 @@ class WebserviceRequestCML
 
         $pathImport = $this->uploadDir.$this->param['filename'];
         if (!file_exists($pathImport)) {
-            if (!file_exists($this->uploadDir)) {
+            if (!file_exists($this->uploadDir) || @rmdir($this->uploadDir)) {
                 $this->error = 'Файлы импорта не загружены';
             } else {
                 foreach (scandir($this->uploadDir) as $file) {
