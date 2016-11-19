@@ -29,7 +29,7 @@ class ProductImportCML extends ImportCML
 
     public function save()
     {
-        static $syncWithuotImg = false;
+        static $syncWithoutImg = false;
         // Удалить обьект если он был удален в ERP
         if (self::getXmlElemAttrValue($this->xml, 'СтатусТип') == 'Удален') {
             if ($this->entity->id_target) {
@@ -67,7 +67,7 @@ class ProductImportCML extends ImportCML
             }
         }
 
-        if (!$syncWithuotImg && isset($this->xml->Картинка)) {
+        if (!$syncWithoutImg && isset($this->xml->Картинка)) {
             $fields = array('id_product' => $idProduct);
             $position = Image::getHighestPosition($idProduct);
             $cover = !Image::hasImages($this->idLangDefault, $idProduct);
@@ -76,7 +76,7 @@ class ProductImportCML extends ImportCML
                 // Если выбрана опция не загружать картинки во время синхронизации, тогда игнорировать изображения
                 $path = WebserviceRequestCML::getInstance()->uploadDir.(string) $img;
                 if (!file_exists($path)) {
-                    $syncWithuotImg = true;
+                    $syncWithoutImg = true;
                     break;
                 }
                 $fields['position'] = ++$position;
