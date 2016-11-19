@@ -30,6 +30,7 @@ class ProductImportCML extends ImportCML
     public function save()
     {
         static $syncWithoutImg = false;
+
         // Удалить обьект если он был удален в ERP
         if (self::getXmlElemAttrValue($this->xml, 'СтатусТип') == 'Удален') {
             if ($this->entity->id_target) {
@@ -37,6 +38,12 @@ class ProductImportCML extends ImportCML
                 $this->entity->delete();
             }
             return true;
+        }
+
+        $replaceEndBreak = (bool) Configuration::get(WebserviceRequestCML::MODULE_NAME.'-replaceEndBreak');
+        $replaceEndBreak = true;
+        if ($replaceEndBreak) {
+            $this->fields['description'] = preg_replace('/\n/', '<br/>', $this->fields['description']);
         }
 
         if (!parent::save()) {
