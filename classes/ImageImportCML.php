@@ -4,6 +4,32 @@ class ImageImportCML extends ImportCML
 {
     public $idEntityCMLName = null;
 
+    public function __construct()
+    {
+        // Удалить Image без изображений
+        foreach (Image::getAllImages() as $image) {
+            $idImage = $image['id_image'];
+            $dir = _PS_PROD_IMG_DIR_.Image::getImgFolderStatic($idImage);
+            $pathImg = $dir.$idImage.'.jpg';
+            if (!file_exists($pathImg) || !filesize($pathImg)) {
+                (new Image($idImage))->delete();
+                $rmDir = true;
+                // Удалить папку если она пуста и в ней только один файл index.php
+                foreach (scandir($dir) as $file) {
+                    if ($file[0] != '.' && $file != 'index.php') {
+                        $rmDir = false;
+                        break;
+                    }
+                }
+                if ($rmDir) {
+                    @unlink($dir.'index.php');
+                    @rmdir($dir);
+                }
+            }
+        }
+        parent::__construct();
+    }
+
     public function setHash()
     {
         // Если учитывать position, тогда каждый импорт будет создавать новое изображение, так как позиция изменяется
