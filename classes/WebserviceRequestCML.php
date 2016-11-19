@@ -248,7 +248,7 @@ class WebserviceRequestCML
     {
         return array(
             'Cache-Control: no-store, no-cache',
-            //'Content-Type:',
+            'Content-Type : text/plain; charset=utf-8',
         );
     }
 }
