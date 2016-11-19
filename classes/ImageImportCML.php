@@ -52,24 +52,30 @@ class ImageImportCML extends ImportCML
         if (!$uploadDir) {
             $uploadDir = WebserviceRequestCML::getInstance()->uploadDir;
         }
-        /** @var Image $target */
-        $target = $this->targetClass;
+        /** @var Image $img */
+        $img = $this->targetClass;
         $filename = (string) $this->xml;
         $ext = pathinfo($filename, PATHINFO_EXTENSION);
 
         $oldPath = $uploadDir.$filename;
         if (!file_exists($oldPath)) {
-            $target->delete();
+            $img->delete();
             throw new ImportCMLException('Файл изображения не был загружен');
         }
         if (!ImageManager::isCorrectImageFileExt($filename) || !ImageManager::isRealImage($oldPath)) {
-            $target->delete();
+            $img->delete();
             throw new ImportCMLException('Изображение товара имеет неверный формат или не является изображением');
         }
-        $newPath = $target->getPathForCreation().".$ext";
+        $newPath = $img->getPathForCreation().".$ext";
 
-        if (!@rename($oldPath, $newPath)) {
-            $target->delete();
+        // AdminImagesController::_regenerateNewImages() работает только с jpg
+        if ($ext != 'jpg') {
+            if (!ImageManager::resize($oldPath, $newPath)) {
+                $img->delete();
+                throw new ImportCMLException('Не могу сохранить изображение товара');
+            }
+            @unlink($oldPath);
+        } elseif (!@rename($oldPath, $newPath)) {
             throw new ImportCMLException('Не могу сохранить изображение товара');
         }
         // todo ??? resize image
