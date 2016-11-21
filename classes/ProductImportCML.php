@@ -40,12 +40,6 @@ class ProductImportCML extends ImportCML
             return true;
         }
 
-        $replaceEndBreak = (bool) Configuration::get(WebserviceRequestCML::MODULE_NAME.'-replaceEndBreak');
-        $replaceEndBreak = true;
-        if ($replaceEndBreak) {
-            $this->fields['description'] = preg_replace('/\n/', '<br/>', $this->fields['description']);
-        }
-
         if (!parent::save()) {
             return false;
         }
@@ -160,7 +154,11 @@ class ProductImportCML extends ImportCML
                 $fields['id_category_default'] = $categories[0];
             }
         }
-
+        $replaceEndBreak = (bool) Configuration::get(WebserviceRequestCML::MODULE_NAME.'-replaceEndBreak');
+        $replaceEndBreak = true;
+        if ($replaceEndBreak) {
+            $fields['description'] = preg_replace('/\n/', '<br/>', $this->fields['description']);
+        }
         return array_merge($fields, parent::getCalcFields());
     }
 
