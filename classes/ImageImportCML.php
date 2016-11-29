@@ -13,6 +13,7 @@ class ImageImportCML extends ImportCML
             $pathImg = $dir.$idImage.'.jpg';
             if (!file_exists($pathImg) || !filesize($pathImg)) {
                 (new Image($idImage))->delete();
+                // Image::deleteImage() не срабатывает если нет базового изображения, удалить папку самостоятельно
                 $rmDir = true;
                 // Удалить папку если она пуста и в ней только один файл index.php
                 foreach (scandir($dir) as $file) {
@@ -70,6 +71,7 @@ class ImageImportCML extends ImportCML
 
         // AdminImagesController::_regenerateNewImages() работает только с jpg
         if ($ext != 'jpg') {
+            // Происходит поворот изображений с метаданными об ориентации, которые были перевернуты в другом ПО
             if (!ImageManager::resize($oldPath, $newPath)) {
                 $img->delete();
                 throw new ImportCMLException('Не могу сохранить изображение товара');

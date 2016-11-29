@@ -125,7 +125,6 @@ class ProductImportCML extends ImportCML
     {
         $fields = array();
 
-
         if (isset($this->xml->ТорговаяМарка)) {
             $fields['id_manufacturer']  = self::catchBall(
                 $this->xml->ТорговаяМарка->getName(),

@@ -18,7 +18,7 @@ class EntityCML extends ObjectModel
         ),
     );
 
-    public static function getIdEntityCMLAndTarget($guid, $hash, $cache = false)
+    public static function getIdEntityCMLAndTarget($guid, $hash = null, $cache = false)
     {
         if (!$guid && !$hash) {
             throw new Exception('Должно быть задано одно из значиний guid или hash');
@@ -42,12 +42,12 @@ class EntityCML extends ObjectModel
         return false;
     }
 
-    public static function getId($guid, $hash, $cache = false)
+    public static function getId($guid, $hash = null, $cache = false)
     {
         $ids = self::getIdEntityCMLAndTarget($guid, $hash, $cache);
         return $ids ? (int) $ids[self::$definition['primary']] : false;
     }
-    public static function getIdTarget($guid, $hash, $cache = false)
+    public static function getIdTarget($guid, $hash = null, $cache = false)
     {
         $ids = self::getIdEntityCMLAndTarget($guid, $hash, $cache);
         return $ids ? (int) $ids['id_target'] : false;
