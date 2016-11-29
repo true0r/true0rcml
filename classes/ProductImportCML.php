@@ -68,25 +68,41 @@ class ProductImportCML extends ImportCML
             }
         }
 
-        if (!$syncWithoutImg && isset($this->xml->Картинка)) {
-            $fields = array('id_product' => $idProduct);
-            $position = Image::getHighestPosition($idProduct);
-            // Первое изображение в списке всегда cover,
-            $cover = true;
+        if (!$syncWithoutImg) {
+            $idsImg = array();
+            foreach (Image::getImages($this->idLangDefault, $idProduct) as $img) {
+                $idsImg[] = $img['id_image'];
+            }
 
-            foreach ($this->xml->Картинка as $img) {
-                // Если выбрана опция не загружать картинки во время синхронизации, тогда игнорировать изображения
-                $path = WebserviceRequestCML::getInstance()->uploadDir.(string) $img;
-                if (!file_exists($path)) {
-                    $syncWithoutImg = true;
-                    break;
+            if (isset($this->xml->Картинка)) {
+                $fields = array('id_product' => $idProduct);
+                $position = Image::getHighestPosition($idProduct);
+                // Первое изображение в списке всегда cover,
+                $cover = true;
+
+                foreach ($this->xml->Картинка as $img) {
+                    // Если выбрана опция не загружать картинки во время синхронизации, тогда игнорировать изображения
+                    $path = WebserviceRequestCML::getInstance()->uploadDir.(string) $img;
+                    if (!file_exists($path)) {
+                        $syncWithoutImg = true;
+                        break;
+                    }
+                    $fields['position'] = ++$position;
+                    // Не устанавливать cover, так как UNIQUE (id_product, cover) не даст сохранить Image
+                    $idImg = ImportCML::catchBall($img->getName(), $img, $fields);
+                    if ($cover) {
+                        $cover = false;
+                        ImageImportCML::setCover($idImg, $idProduct);
+                    }
+                    $idsImg = array_diff($idsImg, array($idImg));
                 }
-                $fields['position'] = ++$position;
-                // Не устанавливать cover, так как UNIQUE (id_product, cover) не даст сохранить Image
-                $idImg = ImportCML::catchBall($img->getName(), $img, $fields);
-                if ($cover) {
-                    $cover = false;
-                    ImageImportCML::setCover($idImg, $idProduct);
+            }
+
+            foreach ($idsImg as $idImg) {
+                // Удалить изображение из магазина, если оно удалено в ERP (но не добавлено в магазине)
+                if (EntityCML::existsIdTarget($idImg, 'Картинка')) {
+                    // EntityCML будет удален при следующей инициализации объекта
+                    (new Image($idImg))->delete();
                 }
             }
         }

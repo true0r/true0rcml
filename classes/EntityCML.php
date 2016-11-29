@@ -52,4 +52,19 @@ class EntityCML extends ObjectModel
         $ids = self::getIdEntityCMLAndTarget($guid, $hash, $cache);
         return $ids ? (int) $ids['id_target'] : false;
     }
+
+    public static function getIdByIdTarget($idTarget, $entityCMLName)
+    {
+        return Db::getInstance()->getValue(
+            (new DbQuery())
+                ->select(EntityCML::$definition['primary'])
+                ->from(EntityCML::$definition['table'])
+                ->where("id_target = $idTarget")
+                ->where('target_class = '.ImportCML::getInstance($entityCMLName)->targetIdClass)
+        );
+    }
+    public static function existsIdTarget($idTarget, $entityCMLName)
+    {
+        return (bool) self::getIdByIdTarget($idTarget, $entityCMLName);
+    }
 }
