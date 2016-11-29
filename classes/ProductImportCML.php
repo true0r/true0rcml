@@ -71,7 +71,8 @@ class ProductImportCML extends ImportCML
         if (!$syncWithoutImg && isset($this->xml->Картинка)) {
             $fields = array('id_product' => $idProduct);
             $position = Image::getHighestPosition($idProduct);
-            $cover = !Image::hasImages($this->idLangDefault, $idProduct);
+            // Первое изображение в списке всегда cover,
+            $cover = true;
 
             foreach ($this->xml->Картинка as $img) {
                 // Если выбрана опция не загружать картинки во время синхронизации, тогда игнорировать изображения
@@ -81,9 +82,12 @@ class ProductImportCML extends ImportCML
                     break;
                 }
                 $fields['position'] = ++$position;
-                $fields['cover'] = $cover;
-                $cover && $cover = false;
-                ImportCML::catchBall($img->getName(), $img, $fields);
+                // Не устанавливать cover, так как UNIQUE (id_product, cover) не даст сохранить Image
+                $idImg = ImportCML::catchBall($img->getName(), $img, $fields);
+                if ($cover) {
+                    $cover = false;
+                    ImageImportCML::setCover($idImg, $idProduct);
+                }
             }
         }
 

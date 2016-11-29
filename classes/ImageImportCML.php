@@ -114,4 +114,24 @@ class ImageImportCML extends ImportCML
 
         return true;
     }
+
+    public static function setCover($idImg, $idProduct)
+    {
+        $idImgCover = Image::getGlobalCover($idProduct)['id_image'];
+        if ($idImg == $idImgCover) {
+            return;
+        }
+        $db = Db::getInstance();
+        if (!(Image::deleteCover($idProduct) && $db->update(
+                Image::$definition['table'],
+                array('cover' => 1),
+                Image::$definition['primary']." = $idImg"
+            ) && $db->update(
+                Image::$definition['table'].'_shop',
+                array('cover' => 1),
+                Image::$definition['primary']." = $idImg"
+            ))) {
+            throw new ImportCMLException('Не могу установить обложку для товара');
+        }
+    }
 }
