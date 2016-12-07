@@ -17,7 +17,7 @@ class True0rCML extends Module
     {
         $this->name = 'true0rcml';
         $this->tab = 'others';
-        $this->version = '0.1.0';
+        $this->version = '0.7.0';
         $this->author = 'Alexander Galaydyuk';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = array('min' => '1.7', 'max' => _PS_VERSION_);
