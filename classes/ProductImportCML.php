@@ -145,11 +145,14 @@ class ProductImportCML extends ImportCML
         $fields = array();
 
         if (isset($this->xml->ТорговаяМарка)) {
-            $fields['id_manufacturer']  = self::catchBall(
-                $this->xml->ТорговаяМарка->getName(),
-                null,
-                array('name' => (string) $this->xml->ТорговаяМарка)
-            );
+            $manufacturer = (string) $this->xml->ТорговаяМарка;
+            if (!empty($manufacturer)) {
+                $fields['id_manufacturer']  = self::catchBall(
+                    $this->xml->ТорговаяМарка->getName(),
+                    null,
+                    array('name' => (string) $this->xml->ТорговаяМарка)
+                );
+            }
         }
 
         if (isset($this->xml->Штрихкод)) {
@@ -175,7 +178,7 @@ class ProductImportCML extends ImportCML
         $replaceEndBreak = (bool) Configuration::get(WebserviceRequestCML::MODULE_NAME.'-replaceEndBreak');
         $replaceEndBreak = true;
         if ($replaceEndBreak) {
-            $fields['description'] = preg_replace('/\n/', '<br/>', $this->fields['description']);
+            $fields['description'] = nl2br($this->fields['description']);
         }
         return array_merge($fields, parent::getCalcFields());
     }
