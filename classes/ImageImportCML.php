@@ -95,17 +95,18 @@ class ImageImportCML extends ImportCML
             $img->delete();
             throw new ImportCMLException("Не могу сгенерировать изображение товара, $existingImg не существует");
         }
+        // todo Подробней об изображении которое не может быть импортированно
         foreach ($imageType as $type) {
             $newImg = $existingPath.'-'.stripcslashes($type['name']).'.'.$img->image_format;
             if (file_exists($newImg)) {
                 continue;
             }
             if (!ImageManager::resize($existingImg, $newImg, (int) $type['width'], (int) $type['height'])) {
-                throw new ImportCMLException("Ошибка генерации изображения товара $newImg");
+//                throw new ImportCMLException("Ошибка генерации изображения {$img->id} для товара");
             } elseif ($generateHightDpiImages) {
                 $newImg = $existingPath.'-'.stripcslashes($type['name']).'2x.'.$img->image_format;
                 if (!ImageManager::resize($existingImg, $newImg, (int) $type['width'] * 2, (int) $type['height'] * 2)) {
-                    throw new ImportCMLException("Ошибка генерации HIGHT_DPI изображения товара $newImg");
+//                    throw new ImportCMLException("Ошибка генерации HIGHT_DPI изображения товара $newImg");
                 }
             }
         }
