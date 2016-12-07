@@ -92,6 +92,7 @@ class ImageImportCML extends ImportCML
         $existingImg = "$existingPath.jpg";
 
         if (!file_exists($existingImg) && !filesize($existingImg)) {
+            $img->delete();
             throw new ImportCMLException("Не могу сгенерировать изображение товара, $existingImg не существует");
         }
         foreach ($imageType as $type) {
