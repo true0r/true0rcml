@@ -12,6 +12,8 @@ class ImportCML
         'Значение' => array('className' => 'FeatureValue', 'idClass' => 4, 'needWalk' => 0),
         'ТорговаяМарка' => array('className' => 'Manufacturer', 'idClass' => 5, 'needWalk' => 0),
         'Картинка' => array('className' => 'Image', 'idClass' => 6, 'needWalk' => 0),
+        'Предложение' => array('className' => 'SpecificPrice', 'idClass' => 7, 'needWalk' => 1),
+        'Цена' => array('className' => 'SpecificPrice', 'idClass' => 7, 'needWalk' => 0),
     );
     /**
      * @param bool $cache Флаг, хранить кеш? Cache::$local[$key] хранит только 1000 елементов, стоит хранить
@@ -127,7 +129,7 @@ class ImportCML
         // Убрать случайно попавшие поля, предотвратив случайное обновление и неправльный хеш
         $import->clearFields();
         $import->setHash();
-        $import->entity = new EntityCML(EntityCML::getId($import->idEntityCML, $import->hash, $import->cache));
+        $import->setEntity();
 
         if (!$import->save()) {
             throw new ImportCMLException("Ошибка сохранения {$import->targetClassName}");
@@ -146,11 +148,12 @@ class ImportCML
 
     public static function getStats()
     {
+        $exclude = array('Справочник',  'Предложение');
         $stats = 'Import (Entity Add/Upd): ';
         $countAllUpd = 0;
         $countAllAdd = 0;
         foreach (self::$mapTarget as $entity => $target) {
-            if (isset(self::$instance[$target['className']]) && !in_array($entity, array('Справочник'))) {
+            if (isset(self::$instance[$target['className']]) && !in_array($entity, $exclude)) {
                 $countUpd = self::$instance[$target['className']]->countUpd;
                 $countAdd = self::$instance[$target['className']]->countAdd;
                 if ($countUpd || $countAdd) {
@@ -162,12 +165,6 @@ class ImportCML
         }
         $stats .= "All $countAllAdd/$countAllUpd, ";
         return $stats;
-    }
-
-    public function setHash()
-    {
-        ksort($this->fields);
-        $this->hash = md5(implode('', $this->fields));
     }
     public function getDefaultFields()
     {
@@ -186,6 +183,17 @@ class ImportCML
         }
         return $fields;
     }
+
+    public function setHash()
+    {
+        ksort($this->fields);
+        $this->hash = md5(implode('', $this->fields));
+    }
+    public function setEntity()
+    {
+        $this->entity = new EntityCML(EntityCML::getId($this->idEntityCML, $this->hash, $this->cache));
+    }
+
     public function clearFields()
     {
         $this->fields = array_filter($this->fields, function ($key) {
