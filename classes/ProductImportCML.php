@@ -66,13 +66,13 @@ class ProductImportCML extends ImportCML
             }
         }
 
-        $syncWithoutImg = false;
-        $idsImg = array();
-        foreach (Image::getImages($this->idLangDefault, $idProduct) as $img) {
-            $idsImg[] = $img['id_image'];
-        }
-
         if (isset($this->xml->Картинка)) {
+            $syncWithoutImg = false;
+            $idsImg = array();
+            foreach (Image::getImages($this->idLangDefault, $idProduct) as $img) {
+                $idsImg[] = $img['id_image'];
+            }
+
             $fields = array('id_product' => $idProduct);
             $position = Image::getHighestPosition($idProduct);
             // Первое изображение в списке всегда cover,
@@ -94,14 +94,14 @@ class ProductImportCML extends ImportCML
                 }
                 $idsImg = array_diff($idsImg, array($idImg));
             }
-        }
 
-        if (!$syncWithoutImg) {
-            foreach ($idsImg as $idImg) {
-                // Удалить изображение из магазина, если оно удалено в ERP (но не добавлено в магазине)
-                if (EntityCML::existsIdTarget($idImg, 'Картинка')) {
-                    // EntityCML будет удален при следующей инициализации объекта
-                    (new Image($idImg))->delete();
+            if (!$syncWithoutImg) {
+                foreach ($idsImg as $idImg) {
+                    // Удалить изображение из магазина, если оно удалено в ERP (но не добавлено в магазине)
+                    if (EntityCML::existsIdTarget($idImg, 'Картинка')) {
+                        // EntityCML будет удален при следующей инициализации объекта
+                        (new Image($idImg))->delete();
+                    }
                 }
             }
         }
