@@ -89,7 +89,7 @@ class ImportCMLStatus
                 break;
         }
 
-        // 1C не поспринимает кодировку UTF-8 не смотря на заголовки HTTP
+        // 1C не воспринимает кодировку UTF-8 не смотря на заголовки HTTP
         // необходимо добавить маркер BOM
         return chr(0xEF).chr(0xBB).chr(0xBF).$messageStatus.$this->message;
     }

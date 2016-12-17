@@ -66,6 +66,8 @@ class ProductImportCML extends ImportCML
             }
         }
 
+        // Синхронизировать удаленые в ERP изображения только если тег установлен
+        // 1C при синхронизации без изображений не добавляет этот тег
         if (isset($this->xml->Картинка)) {
             $syncWithoutImg = false;
             $idsImg = array();
