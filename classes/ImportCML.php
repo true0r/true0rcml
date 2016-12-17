@@ -149,7 +149,7 @@ class ImportCML
     public static function getStats()
     {
         $exclude = array('Справочник',  'Предложение');
-        $stats = 'Import (Entity Add/Upd): ';
+        $stats = '';
         $countAllUpd = 0;
         $countAllAdd = 0;
         foreach (self::$mapTarget as $entity => $target) {

@@ -169,8 +169,12 @@ class WebserviceRequestCML
             return;
         }
 
+//        if ('offers.xml' === $this->param['filename'] && !SpecificPrice::isFeatureActive()) {
+//            $this->status->setError('Цены не могут быть импортированны так как отключена функция "Специальные цены"';
+//        }
         $startTime = microtime(true);
-        $saveStatus = 0;
+        $timeStep = 20;
+        $nextTimeInterval = 0;
 
         try {
             while ($xmlReader->read()) {
@@ -188,22 +192,25 @@ class WebserviceRequestCML
                         return;
                     }
                     $xmlReader->next();
-                    if (++$saveStatus == 50) {
-                        $saveStatus = 0;
+
+                    $processTime = microtime(true) - $startTime;
+                    if (($currentTimeInterval = (int) ($processTime / $timeStep)) >= $nextTimeInterval) {
+                        $nextTimeInterval = ++$currentTimeInterval;
                         $this->status->setProgress(
                             ImportCML::getStats()
-                            ."Peak memory: ".(memory_get_peak_usage(true) / 1024 / 1024)
-                            ."MB Time: ".(microtime(true) - $startTime)
+                            ."Pm: ".(memory_get_peak_usage(true) / 1024 / 1024)." MB "
+                            ."Time: ".(int) (microtime(true) - $startTime)." s "
                         );
                     }
                 }
             }
+
             $xmlReader->close();
             ImportCML::runPostImport();
             $this->status->setSuccess(
                 ImportCML::getStats()
-                ."Peak memory: ".(memory_get_peak_usage(true) / 1024 / 1024)
-                ."MB Time: ".(microtime(true) - $startTime)
+                ."Pm: ".(memory_get_peak_usage(true) / 1024 / 1024)." MB "
+                ."Time: ".(int) (microtime(true) - $startTime)." s "
             );
             $this->status->saveStatus();
         } catch (Exception $e) {
