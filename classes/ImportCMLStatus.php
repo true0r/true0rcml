@@ -15,12 +15,26 @@ class ImportCMLStatus
     public $status;
     public $message;
 
+    /** @var FileLogger */
+    public $logger;
+
     protected function __construct()
     {
         $this->confName = array(
             'status' => self::MODULE_NAME.'STATUS',
             'message' => self::MODULE_NAME.'STATUS_MESSAGE',
         );
+
+        $path = _PS_MODULE_DIR_.self::MODULE_NAME.DIRECTORY_SEPARATOR.'log.txt';
+
+        // удалить большой лог
+        if (file_exists($path) && filesize($path) > Tools::convertBytes('2M')) {
+            @unlink($path);
+        }
+
+        $this->logger = new FileLogger(FileLogger::DEBUG);
+        $this->logger->setFilename($path);
+//        $this->logger->logDebug($_SERVER['QUERY_STRING']);
     }
     public static function getInstance()
     {
@@ -84,6 +98,15 @@ class ImportCMLStatus
     {
         $this->status = $status;
         $this->message = $msg;
+
+        if (self::STATUS_ERROR == $status) {
+            $this->logger->logError($msg);
+        } else {
+            if (self::STATUS_SIMPLE_MESSAGE == $status) {
+                $msg = str_replace("\n", '; ', $msg);
+            }
+            $this->logger->logInfo($msg);
+        }
     }
     public function setError($msg)
     {

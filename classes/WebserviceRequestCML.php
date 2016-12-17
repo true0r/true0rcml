@@ -14,7 +14,6 @@ class WebserviceRequestCML
     public $param;
     public $file;
 
-    public $logger;
     public $uploadDir;
 
     public $defParam = array(
@@ -34,15 +33,6 @@ class WebserviceRequestCML
     public function __construct()
     {
         $this->uploadDir = _PS_UPLOAD_DIR_.self::MODULE_NAME.DIRECTORY_SEPARATOR;
-        $path = _PS_MODULE_DIR_.self::MODULE_NAME.DIRECTORY_SEPARATOR.'log.txt';
-
-        // удалить большой лог
-        if (file_exists($path) && filesize($path) > Tools::convertBytes('2M')) {
-            @unlink($path);
-        }
-
-        $this->logger = new FileLogger(FileLogger::DEBUG);
-        $this->logger->setFilename($path);
 
         spl_autoload_register(function ($class) {
             $path = _PS_MODULE_DIR_.self::MODULE_NAME."/classes/$class.php";
@@ -53,17 +43,15 @@ class WebserviceRequestCML
             }
             return false;
         });
+
         $this->status = ImportCMLStatus::getInstance();
     }
 
     public function fetch($key, $method, $url, $param, $badClassName, $file)
     {
-//        $this->status->removeStatus();
         if ($this->status->isProgress($param['mode'])) {
             return $this->getResult();
         }
-
-        $this->logger->logInfo($_SERVER['QUERY_STRING']);
 
         $this->param = array_map('strtolower', $param);
         $this->file = $file;
@@ -80,13 +68,6 @@ class WebserviceRequestCML
             } else {
                 $this->status->setError("Режим (mode: {$mode}) на данный момент не поддерживается");
             }
-        }
-
-        if ($this->status->isSuccess()) {
-            // Заменить преревод строки для SIMPLE_MESSAGE
-            $this->logger->logInfo(str_replace("\n", '; ', $this->status->message));
-        } else {
-            $this->logger->logError($this->status->message);
         }
 
         return $this->getResult();
@@ -172,7 +153,7 @@ class WebserviceRequestCML
         if (!$xmlReader->open($pathImport)) {
             $errorMsg = "Ошибка загрузки XML";
             foreach (libxml_get_errors() as $error) {
-                $errorMsg .= ' ' . $error->message;
+                $errorMsg .= ' '.$error->message;
             }
             $this->status->setError($errorMsg);
         } elseif (!$xmlReader->next('КоммерческаяИнформация')) {
@@ -282,7 +263,6 @@ class WebserviceRequestCML
     public function terminate()
     {
         ignore_user_abort(true);
-        $this->logger->logInfo($this->status->message);
 
         $result = $this->getResult();
         foreach ($result['headers'] as $header) {
