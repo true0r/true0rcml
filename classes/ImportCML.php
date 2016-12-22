@@ -146,7 +146,7 @@ class ImportCML
         }
     }
 
-    public static function getStats()
+    public static function getStats($startTime = null)
     {
         $exclude = array('Справочник',  'Предложение');
         $stats = '';
@@ -163,7 +163,8 @@ class ImportCML
                 }
             }
         }
-        $stats .= "All $countAllAdd/$countAllUpd, ";
+        $time = $startTime ? "Time: ".(int) (microtime(true) - $startTime)." s " : "";
+        $stats .= "All $countAllAdd/$countAllUpd, Pm: ".(memory_get_peak_usage(true) / 1024 / 1024)." MB $time";
         return $stats;
     }
     public function getDefaultFields()

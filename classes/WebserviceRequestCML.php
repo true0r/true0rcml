@@ -120,52 +120,9 @@ class WebserviceRequestCML
         $this->status->setProgress('Импорт успешно начат');
         $this->terminate();
 
-        $pathImport = $this->uploadDir.$this->param['filename'];
-        if (!file_exists($pathImport)) {
-            if (!file_exists($this->uploadDir) || @rmdir($this->uploadDir)) {
-                $this->status->setError('Файлы импорта не загружены');
-            } else {
-                foreach (scandir($this->uploadDir) as $file) {
-                    if ($file[0] != '.' && 'zip' === pathinfo($file, PATHINFO_EXTENSION)) {
-                        if (true === ($zip = new ZipArchive())->open($this->uploadDir.$file)) {
-                            if (!$zip->extractTo($this->uploadDir)) {
-                                $this->status->setError("Ошибка распаковки zip архива $file");
-                            } else {
-                                @unlink($this->uploadDir.$file);
-                            }
-                            $zip->close();
-                        } else {
-                            $this->status->setError("Не могу открыть zip архив $file");
-                        }
-                    }
-                }
-            }
-        }
-        // Ошибки работы с zip
-        if (!$this->status->isSuccess()) {
-            $this->status->saveStatus();
-            return;
-        }
-        // Не делаю проверку на валидность схеме XML, так как к примеру в украинской редакции
-        // испльзуется не стандартный элемент ЕДРПОУ вместо ЕГРПО, также возможны модификации
-        $xmlReader = new XMLReader();
-
-        if (!$xmlReader->open($pathImport)) {
-            $errorMsg = "Ошибка загрузки XML";
-            foreach (libxml_get_errors() as $error) {
-                $errorMsg .= ' '.$error->message;
-            }
-            $this->status->setError($errorMsg);
-        } elseif (!$xmlReader->next('КоммерческаяИнформация')) {
-            $this->status->setError("XML файл не имеет узла 'КоммерческаяИнформация', что не соответствует CommerceML");
-        } elseif (!$version = $xmlReader->getAttribute('ВерсияСхемы')) {
-            $this->status->setError("Элемент КоммерческаяИнформация не имеет атрибута ВерсияСхемы");
-        } elseif (!Tools::version_compare('2.05', $version, '<=')) {
-            $this->status->setError("Версия ($version) схемы не поддерживается");
-        }
-        // Ошибки XMLReader
-        if (!$this->status->isSuccess()) {
-            $this->status->saveStatus();
+        // OPTIMIZATION: сопоставить скорость работы непосредственно с zip без распаковки
+        $path = $this->uploadDir.$this->param['filename'];
+        if (!($this->unzip($path) && $xmlReader = $this->getXmlReader($path))) {
             return;
         }
 
@@ -196,22 +153,15 @@ class WebserviceRequestCML
                     $processTime = microtime(true) - $startTime;
                     if (($currentTimeInterval = (int) ($processTime / $timeStep)) >= $nextTimeInterval) {
                         $nextTimeInterval = ++$currentTimeInterval;
-                        $this->status->setProgress(
-                            ImportCML::getStats()
-                            ."Pm: ".(memory_get_peak_usage(true) / 1024 / 1024)." MB "
-                            ."Time: ".(int) (microtime(true) - $startTime)." s "
-                        );
+                        $this->status->setProgress(ImportCML::getStats($startTime));
                     }
                 }
             }
 
             $xmlReader->close();
+
             ImportCML::runPostImport();
-            $this->status->setSuccess(
-                ImportCML::getStats()
-                ."Pm: ".(memory_get_peak_usage(true) / 1024 / 1024)." MB "
-                ."Time: ".(int) (microtime(true) - $startTime)." s "
-            );
+            $this->status->setSuccess(ImportCML::getStats($startTime));
             $this->status->saveStatus();
         } catch (Exception $e) {
             $this->status->setError("Импорт не удался из за ошибки : '{$e->getMessage()}'");
@@ -294,6 +244,69 @@ class WebserviceRequestCML
             flush();
             // continue do something on server side
             ob_start();
+        }
+    }
+
+    public function unzip($path)
+    {
+        // Если файл не существует, тогда он в архиве
+        if (file_exists($path)) {
+            return true;
+        }
+
+        $startTime = microtime(true);
+
+        if (!file_exists($this->uploadDir) || @rmdir($this->uploadDir)) {
+            $this->status->setError('Файлы импорта не загружены');
+        } else {
+            $this->status->setProgress('Начата распаковка архива');
+            foreach (scandir($this->uploadDir) as $file) {
+                if ($file[0] != '.' && 'zip' === pathinfo($file, PATHINFO_EXTENSION)) {
+                    if (true === ($zip = new ZipArchive())->open($this->uploadDir.$file)) {
+                        if (!$zip->extractTo($this->uploadDir)) {
+                            $this->status->setError("Ошибка распаковки zip архива $file");
+                        } else {
+                            @unlink($this->uploadDir.$file);
+                        }
+                        $zip->close();
+                    } else {
+                        $this->status->setError("Не могу открыть zip архив $file");
+                    }
+                }
+            }
+        }
+
+        if ($this->status->isSuccess()) {
+            $unzipTime = (int) (microtime(true) - $startTime);
+            $this->status->setProgress("Архив успешно распакован за $unzipTime");
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public function getXmlReader($path)
+    {
+        // Не делаю проверку на валидность схеме XML, так как к примеру в украинской редакции
+        // испльзуется не стандартный элемент ЕДРПОУ вместо ЕГРПО, также возможны модификации
+        $xmlReader = new XMLReader();
+        if (!$xmlReader->open($path)) {
+            $errorMsg = "Ошибка загрузки XML";
+            foreach (libxml_get_errors() as $error) {
+                $errorMsg .= ' '.$error->message;
+            }
+            $this->status->setError($errorMsg);
+        } elseif (!$xmlReader->next('КоммерческаяИнформация')) {
+            $this->status->setError("XML файл не имеет узла 'КоммерческаяИнформация', что не соответствует CommerceML");
+        } elseif (!$version = $xmlReader->getAttribute('ВерсияСхемы')) {
+            $this->status->setError("Элемент КоммерческаяИнформация не имеет атрибута ВерсияСхемы");
+        } elseif (!Tools::version_compare('2.05', $version, '<=')) {
+            $this->status->setError("Версия ($version) схемы не поддерживается");
+        }
+        if ($this->status->isSuccess()) {
+            return $xmlReader;
+        } else {
+            return false;
         }
     }
 }

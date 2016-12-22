@@ -32,9 +32,9 @@ class ImportCMLStatus
             @unlink($path);
         }
 
-        $this->logger = new FileLogger(FileLogger::DEBUG);
+        $this->logger = new FileLogger(FileLogger::INFO);
         $this->logger->setFilename($path);
-//        $this->logger->logDebug($_SERVER['QUERY_STRING']);
+        $this->logger->logDebug($_SERVER['QUERY_STRING']);
     }
     public static function getInstance()
     {
