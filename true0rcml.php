@@ -151,8 +151,9 @@ class True0rCML extends Module
 
         $this->delWsKey();
         return (
-            Db::getInstance()->execute('DROP TABLE IF EXISTS '._DB_PREFIX_.EntityCML::$definition['table'])
-            && parent::uninstall()
+            // Свести к минимуму возможные негативные последствия при удалении модуля
+            // Db::getInstance()->execute('DROP TABLE IF EXISTS '._DB_PREFIX_.EntityCML::$definition['table'])
+            parent::uninstall()
         );
     }
 }
