@@ -48,7 +48,8 @@ class ImportCMLStatus
     public function isProgress()
     {
         if ($status = Configuration::get($this->confName['status'])) {
-            $this->setMessage(Configuration::get($this->confName['message']), $status);
+            // Не вести лог при опросе сервера о состоянии процесса
+            $this->setMessage(Configuration::get($this->confName['message']), $status, false);
             return self::STATUS_PROGRESS == $status;
         }
         return false;
@@ -82,18 +83,16 @@ class ImportCMLStatus
         return chr(0xEF).chr(0xBB).chr(0xBF).$messageStatus.$this->message;
     }
 
-    public function setMessage($msg, $status = self::STATUS_SUCCESS)
+    public function setMessage($msg, $status = self::STATUS_SUCCESS, $log = true)
     {
         $this->status = $status;
         $this->message = $msg;
 
-        if (self::STATUS_ERROR == $status) {
-            $this->logger->logError($msg);
-        } else {
-            if (self::STATUS_SIMPLE_MESSAGE == $status) {
-                $msg = str_replace("\n", '; ', $msg);
-            }
-            $this->logger->logInfo($msg);
+        if (Configuration::get($this->confName['message']) !== $msg) {
+            $this->save();
+
+            $msg = str_replace("\n", '; ', $msg);
+            $log && $this->logger->log($msg, self::STATUS_ERROR == $status ? FileLogger::ERROR : FileLogger::INFO);
         }
     }
     public function setError($msg)
@@ -107,19 +106,18 @@ class ImportCMLStatus
     public function setProgress($msg)
     {
         $this->setMessage($msg, self::STATUS_PROGRESS);
-        $this->saveStatus();
     }
     public function setSimpleMessage($msg)
     {
         $this->setMessage($msg, self::STATUS_SIMPLE_MESSAGE);
     }
 
-    public function saveStatus()
+    public function save()
     {
         Configuration::updateGlobalValue($this->confName['status'], $this->status);
         Configuration::updateGlobalValue($this->confName['message'], $this->message);
     }
-    public function removeStatus()
+    public function delete()
     {
         Configuration::deleteByName($this->confName['status']);
         Configuration::deleteByName($this->confName['message']);

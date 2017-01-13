@@ -51,7 +51,7 @@ class WebserviceRequestCML
     {
         if (!$this->status->isProgress()) {
             if (isset($param['mode']) && $this->status->message && 'import' === $param['mode']) {
-                $this->status->removeStatus();
+                $this->status->delete();
             } else {
                 $this->param = array_map('strtolower', $param);
                 $this->file = $file;
@@ -146,7 +146,6 @@ class WebserviceRequestCML
                     /** @var ImportCML $class */
                     if (!ImportCML::catchBall($name, $xmlSimple)) {
                         $this->status->setError("Импорт не удался");
-                        $this->status->saveStatus();
                         return;
                     }
                     $xmlReader->next();
@@ -163,10 +162,8 @@ class WebserviceRequestCML
 
             ImportCML::runPostImport();
             $this->status->setSuccess(ImportCML::getStats($startTime));
-            $this->status->saveStatus();
         } catch (Exception $e) {
             $this->status->setError("Импорт не удался из за ошибки : '{$e->getMessage()}'");
-            $this->status->saveStatus();
         }
     }
 
