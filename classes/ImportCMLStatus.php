@@ -45,26 +45,14 @@ class ImportCMLStatus
         return self::$instance;
     }
 
-    public function isProgress($mode)
+    public function isProgress()
     {
-        // Не установлен
-        if (($status = Configuration::get($this->confName['status'])) === false) {
-            return false;
-        }
-
-        if ('import' == $mode) {
+        if ($status = Configuration::get($this->confName['status'])) {
             $this->setMessage(Configuration::get($this->confName['message']), $status);
-        } elseif (self::STATUS_PROGRESS == $status) {
-            $this->setMessage('Подождите окончание процесса импорта, прежде чем сделать новый', self::STATUS_ERROR);
+            return self::STATUS_PROGRESS == $status;
         }
-
-        if (self::STATUS_PROGRESS != $status) {
-            $this->removeStatus();
-        }
-
-        return isset($this->message);
+        return false;
     }
-
     public function isSuccess()
     {
         return $this->status != self::STATUS_ERROR;

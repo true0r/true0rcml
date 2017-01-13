@@ -49,24 +49,26 @@ class WebserviceRequestCML
 
     public function fetch($key, $method, $url, $param, $badClassName, $file)
     {
-        if ($this->status->isProgress($param['mode'])) {
-            return $this->getResult();
-        }
-
-        $this->param = array_map('strtolower', $param);
-        $this->file = $file;
-
-        if (!Module::isEnabled(self::MODULE_NAME)) {
-            $this->status->setError("Модуль интеграции с CommerceML 2 (1С:Предприятие 8) отключен");
-        } elseif (!Configuration::get('PS_WEBSERVICE')) {
-            $this->status->setError('Веб-сервисы отключены, необходимо выполнить активацию в админ панели');
-        } elseif ($this->checkParam()) {
-            $mode = $this->param['mode'];
-            $methodName = 'mode'.Tools::ucfirst($mode);
-            if (method_exists($this, $methodName)) {
-                $this->$methodName();
+        if (!$this->status->isProgress()) {
+            if (isset($param['mode']) && $this->status->message && 'import' === $param['mode']) {
+                $this->status->removeStatus();
             } else {
-                $this->status->setError("Режим (mode: {$mode}) на данный момент не поддерживается");
+                $this->param = array_map('strtolower', $param);
+                $this->file = $file;
+
+                if (!Module::isEnabled(self::MODULE_NAME)) {
+                    $this->status->setError("Модуль интеграции с CommerceML 2 (1С:Предприятие 8) отключен");
+                } elseif (!Configuration::get('PS_WEBSERVICE')) {
+                    $this->status->setError('Веб-сервисы отключены, необходимо выполнить активацию в админ панели');
+                } elseif ($this->checkParam()) {
+                    $mode = $this->param['mode'];
+                    $methodName = 'mode'.Tools::ucfirst($mode);
+                    if (method_exists($this, $methodName)) {
+                        $this->$methodName();
+                    } else {
+                        $this->status->setError("Режим (mode: {$mode}) на данный момент не поддерживается");
+                    }
+                }
             }
         }
 
@@ -76,7 +78,6 @@ class WebserviceRequestCML
     public function modeCheckauth()
     {
         // todo check ip
-        // ??? нужну ли указывать cookie (success\ncookieName\ncookieValue)
         $this->status->setSuccess("Аутентификация успешна");
     }
     public function modeInit()
