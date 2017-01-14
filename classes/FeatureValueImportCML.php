@@ -10,6 +10,14 @@ class FeatureValueImportCML extends ImportCML
         'value' => 'Значение',
     );
 
+    public function save()
+    {
+        if ($status = parent::save()) {
+            self::setWarning("Значение '{$this->fields['value']}' не сохранено");
+        }
+        return $status;
+    }
+
     public static function getIdFeatureValue($guid, $value)
     {
         $cacheId = $guid.$value;
@@ -19,12 +27,13 @@ class FeatureValueImportCML extends ImportCML
 
         if (!$idFeatureValue = EntityCML::getIdTarget($value, null, true)) {
             if ((!$idFeature = EntityCML::getIdTarget($guid, null, true))) {
-                throw new ImportCMLException('Свойство товара не существует');
+                self::setWarning("Свойство c guid '{$guid}' товара не существует");
+                return false;
             }
 
             $fields = array('id_feature' => $idFeature, 'value' => $value);
             if (!$idFeatureValue = self::catchBall('Значение', null, $fields)) {
-                throw new ImportCMLException('Значение свойства не было создано');
+                return false;
             }
         }
 

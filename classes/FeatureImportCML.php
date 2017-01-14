@@ -18,13 +18,10 @@ class FeatureImportCML extends ImportCML
             if (isset($this->xml->ТипЗначений) && (string) $this->xml->ТипЗначений == 'Справочник') {
                 return self::walkChildren($this->xml->ВариантыЗначений, $fields);
             } else {
+                /** @var $featureValue SimpleXMLElement */
                 foreach ($this->xml->ВариантыЗначений->children() as $featureValue) {
-                    if (!self::catchBall(
-                        $featureValue->getName(),
-                        null,
-                        array_merge($fields, array('value' => (string) $featureValue)))) {
-                        return false;
-                    }
+                    $fields = array_merge($fields, array('value' => (string) $featureValue));
+                    self::catchBall($featureValue->getName(), null, $fields);
                 }
             }
         }

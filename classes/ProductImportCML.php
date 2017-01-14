@@ -61,13 +61,15 @@ class ProductImportCML extends ImportCML
                 // что критично для импорта большого числа товаров, стоит сделать вызов applyAllRules для множества
                 self::$prodToUpdSpecPriceRule[] = $product->id;
                 if ((empty($delCats) || !$product->deleteCategories(true)) && !$product->addToCategories($cats)) {
-                    throw new ImportCMLException('Не могу добавить категории (Группы) к товару');
+                    $productName = $product->name[Context::getContext()->language->id];
+                    self::setWarning("Не могу добавить категории (Группы) к товару '{$productName}'");
                 }
             }
         }
 
         // Синхронизировать удаленые в ERP изображения только если тег установлен
-        // 1C при синхронизации без изображений не добавляет этот тег
+        // 1C при синхронизации без изображений не добавляет этот тег,
+        // предусмотреть ситуацию для других ERP когда тег доблен (флаг $syncWithoutImg)
         if (isset($this->xml->Картинка)) {
             $syncWithoutImg = false;
             $idsImg = array();
@@ -89,12 +91,13 @@ class ProductImportCML extends ImportCML
                 }
                 $fields['position'] = ++$position;
                 // Не устанавливать cover, так как UNIQUE (id_product, cover) не даст сохранить Image
-                $idImg = ImportCML::catchBall($img->getName(), $img, $fields);
-                if ($cover) {
-                    $cover = false;
-                    ImageImportCML::setCover($idImg, $idProduct);
+                if ($idImg = ImportCML::catchBall($img->getName(), $img, $fields)) {
+                    if ($cover) {
+                        $cover = false;
+                        ImageImportCML::setCover($idImg, $idProduct);
+                    }
+                    $idsImg = array_diff($idsImg, array($idImg));
                 }
-                $idsImg = array_diff($idsImg, array($idImg));
             }
 
             if (!$syncWithoutImg) {
@@ -114,7 +117,9 @@ class ProductImportCML extends ImportCML
                 // $feature (ЗначенияСвойства)
                 foreach ($this->xml->ЗначенияСвойств->children() as $feature) {
                     if ($value = (string) $feature->Значение) {
-                        $featureValue[] = FeatureValueImportCML::getIdFeatureValue((string) $feature->Ид, $value);
+                        if ($idFeatureValue = FeatureValueImportCML::getIdFeatureValue((string) $feature->Ид, $value)) {
+                            $featureValue[] = $idFeatureValue;
+                        }
                     }
                 }
                 $featureValue = array_unique($featureValue);
@@ -149,11 +154,10 @@ class ProductImportCML extends ImportCML
         if (isset($this->xml->ТорговаяМарка)) {
             $manufacturer = (string) $this->xml->ТорговаяМарка;
             if (!empty($manufacturer)) {
-                $fields['id_manufacturer']  = self::catchBall(
-                    $this->xml->ТорговаяМарка->getName(),
-                    null,
-                    array('name' => (string) $this->xml->ТорговаяМарка)
-                );
+                $entityCMLName = $this->xml->ТорговаяМарка->getName();
+                if ($idManufacturer = self::catchBall($entityCMLName, null, array('name' => $manufacturer))) {
+                    $fields['id_manufacturer'] = $idManufacturer;
+                }
             }
         }
 
@@ -166,11 +170,11 @@ class ProductImportCML extends ImportCML
         if (isset($this->xml->Группы)) {
             $categories = array();
             foreach ($this->xml->Группы->children() as $guid) {
-                $idCategory = EntityCML::getIdTarget((string) $guid, null, true);
-                if (!$idCategory) {
-                    throw new ImportCMLException('Категория (Группа) товара не существует');
+                if ($idCategory = EntityCML::getIdTarget((string)$guid, null, true)) {
+                    $categories[] = $idCategory;
+                } else {
+                    self::setWarning("Категория (Группа) c guid '{$guid}' товара не существует");
                 }
-                $categories[] = $idCategory;
             }
             if (!empty($categories)) {
                 $this->categories = array_unique($categories);

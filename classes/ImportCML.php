@@ -41,6 +41,7 @@ class ImportCML
 
     /** @var  EntityCML */
     public $entity;
+    protected static $warning = array();
 
     protected function __construct()
     {
@@ -130,11 +131,9 @@ class ImportCML
         $import->clearFields();
         $import->setHash();
         $import->setEntity();
+        $import->save();
 
-        if (!$import->save()) {
-            throw new ImportCMLException("Ошибка сохранения {$import->targetClassName}");
-        }
-        return $import->entity->id_target;
+        return isset($import->entity) ? $import->entity->id_target : false;
     }
 
     public static function runPostImport()
@@ -286,13 +285,14 @@ class ImportCML
      */
     public static function walkChildren($parent, $fields = array())
     {
+        $status = true;
         /** @var SimpleXMLElement $child */
         foreach ($parent->children() as $child) {
             if (!self::catchBall($child->getName(), $child, $fields)) {
-                return false;
+                $status = false;
             }
         }
-        return true;
+        return $status;
     }
 
     public function modTargetBeforeAdd()
@@ -316,5 +316,16 @@ class ImportCML
             }
         }
         return false;
+    }
+
+    public static function getWarning()
+    {
+        return ' Warning: '.implode(', ', self::$warning).';';
+    }
+    public static function setWarning($warning)
+    {
+        if (!in_array($warning, self::$warning)) {
+            self::$warning[] = $warning;
+        }
     }
 }

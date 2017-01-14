@@ -144,10 +144,7 @@ class WebserviceRequestCML
                     && ImportCML::$mapTarget[$name]['needWalk']) {
                     $xmlSimple = new SimpleXMLElement($xmlReader->readOuterXml());
                     /** @var ImportCML $class */
-                    if (!ImportCML::catchBall($name, $xmlSimple)) {
-                        $this->status->setError("Импорт не удался");
-                        return;
-                    }
+                    ImportCML::catchBall($name, $xmlSimple);
                     $xmlReader->next();
 
                     $processTime = microtime(true) - $startTime;
@@ -161,7 +158,7 @@ class WebserviceRequestCML
             $xmlReader->close();
 
             ImportCML::runPostImport();
-            $this->status->setSuccess(ImportCML::getStats($startTime));
+            $this->status->setSuccess(ImportCML::getStats($startTime).ImportCML::getWarning());
         } catch (Exception $e) {
             $this->status->setError("Импорт не удался из за ошибки : '{$e->getMessage()}'");
         }
@@ -276,7 +273,7 @@ class WebserviceRequestCML
 
         if ($this->status->isSuccess()) {
             $unzipTime = (int) (microtime(true) - $startTime);
-            $this->status->setProgress("Архив успешно распакован за $unzipTime");
+            $this->status->setProgress("Архив успешно распакован за $unzipTime s");
             return true;
         } else {
             return false;

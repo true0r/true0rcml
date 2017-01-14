@@ -87,7 +87,8 @@ class SpecificPriceImportCML extends ImportCML
 
         if (isset($this->xml->Цены)) {
             if (!$idProduct = EntityCML::getIdTarget($this->idEntityCML)) {
-                throw new ImportCMLException('Не могу выполнить импорт цен, так как номенклатура отсутствует на сайте');
+                self::setWarning('Не могу выполнить импорт некоторых цен, так как номенклатура отсутствует на сайте');
+                return false;
             }
             // todo управление складами
             // Обработка количества товаров

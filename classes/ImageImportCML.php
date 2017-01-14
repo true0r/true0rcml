@@ -59,13 +59,16 @@ class ImageImportCML extends ImportCML
         $ext = pathinfo($filename, PATHINFO_EXTENSION);
 
         $oldPath = $uploadDir.$filename;
+        $productName = $this->targetClass->name[Context::getContext()->language->id];
         if (!file_exists($oldPath)) {
+            self::setWarning("Файл изображения товара '{$productName}' не загружен");
             $img->delete();
-            throw new ImportCMLException('Файл изображения не был загружен');
+            return false;
         }
         if (!ImageManager::isCorrectImageFileExt($filename) || !ImageManager::isRealImage($oldPath)) {
+            self::setWarning("Изображение товара '{$productName}' имеет неверный формат");
             $img->delete();
-            throw new ImportCMLException('Изображение товара имеет неверный формат или не является изображением');
+            return false;
         }
         $newPath = $img->getPathForCreation().'.'.$img->image_format;
 
@@ -73,12 +76,15 @@ class ImageImportCML extends ImportCML
         if ($ext != 'jpg') {
             // Происходит поворот изображений с метаданными об ориентации, которые были перевернуты в другом ПО
             if (!ImageManager::resize($oldPath, $newPath)) {
+                self::setWarning("Не могу изображение товара '{$productName}' преобразовать к нужному формату");
                 $img->delete();
-                throw new ImportCMLException('Не могу сохранить изображение товара');
+                return false;
             }
             @unlink($oldPath);
         } elseif (!@rename($oldPath, $newPath)) {
-            throw new ImportCMLException('Не могу сохранить изображение товара');
+            self::setWarning("Не могу сохранить изображение товара '{$productName}'");
+            $img->delete();
+            return false;
         }
 
         $generateNewImage = (bool) Configuration::get(WebserviceRequestCML::MODULE_NAME.'-generateNewImage');
@@ -92,21 +98,25 @@ class ImageImportCML extends ImportCML
         $existingImg = "$existingPath.jpg";
 
         if (!file_exists($existingImg) && !filesize($existingImg)) {
-            $img->delete();
-            throw new ImportCMLException("Не могу сгенерировать изображение товара, $existingImg не существует");
-        }
-        // todo Подробней об изображении которое не может быть импортированно
-        foreach ($imageType as $type) {
-            $newImg = $existingPath.'-'.stripcslashes($type['name']).'.'.$img->image_format;
-            if (file_exists($newImg)) {
-                continue;
-            }
-            if (!ImageManager::resize($existingImg, $newImg, (int) $type['width'], (int) $type['height'])) {
-//                throw new ImportCMLException("Ошибка генерации изображения {$img->id} для товара");
-            } elseif ($generateHightDpiImages) {
-                $newImg = $existingPath.'-'.stripcslashes($type['name']).'2x.'.$img->image_format;
-                if (!ImageManager::resize($existingImg, $newImg, (int) $type['width'] * 2, (int) $type['height'] * 2)) {
-//                    throw new ImportCMLException("Ошибка генерации HIGHT_DPI изображения товара $newImg");
+            self::setWarning("Не могу сгенерировать изображение товара, файл '$existingImg' не существует");
+        } else {
+            foreach ($imageType as $type) {
+                $newImg = $existingPath.'-'.stripcslashes($type['name']).'.'.$img->image_format;
+                if (file_exists($newImg)) {
+                    continue;
+                }
+                if (!ImageManager::resize($existingImg, $newImg, (int) $type['width'], (int) $type['height'])) {
+                    self::setWarning("Ошибка генерации изображения '{$img->id}' для товара '{$productName}'");
+                } elseif ($generateHightDpiImages) {
+                    $newImg = $existingPath.'-'.stripcslashes($type['name']).'2x.'.$img->image_format;
+                    if (!ImageManager::resize(
+                        $existingImg,
+                        $newImg,
+                        (int) $type['width'] * 2,
+                        (int) $type['height'] * 2
+                    )) {
+                        self::setWarning("Ошибка генерации HIGHT_DPI изображения '{$img->id}' товара '{$productName}'");
+                    }
                 }
             }
         }
@@ -132,7 +142,8 @@ class ImageImportCML extends ImportCML
                 array('cover' => 1),
                 Image::$definition['primary']." = $idImg"
             ))) {
-            throw new ImportCMLException('Не могу установить обложку для товара');
+            $productName = Product::getProductName($idProduct);
+            self::setWarning("Не могу установить обложку товара '{$productName}'");
         }
     }
 }
