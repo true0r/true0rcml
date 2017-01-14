@@ -27,7 +27,6 @@ class True0rCML extends Module
         // @codingStandardsIgnoreStart
         $this->displayName = $this->l('Интеграция с CommerceML 2 (1С:Предприятие 8)');
         $this->description = $this->l('Интеграция на базе протокола CommerceML2, для выгрузки товаров и цен');
-        $this->confirmUninstall = $this->l('Будут удаленны все данные о синхронизации, если потребуется воспользоватся модулем снова, то сперва прейдется импортировать все товары');
         // @codingStandardsIgnoreEnd
     }
 
