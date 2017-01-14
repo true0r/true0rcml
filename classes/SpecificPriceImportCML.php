@@ -100,7 +100,24 @@ class SpecificPriceImportCML extends ImportCML
                 $productUpd = true;
             };
 
+            $productActive = Db::getInstance()->getValue(
+                (new DbQuery())
+                    ->select('active')
+                    ->from(Product::$definition['table'])
+                    ->where(Product::$definition['primary']." = ".$idProduct)
+            );
 
+            if ((0 == $quantity && $productActive) || (0 > $quantity && 0 == $sa && !$productActive)) {
+                $product = new Product($idProduct);
+                $productActive = (int) !$productActive;
+                $product->active = $productActive;
+                $product->setFieldsToUpdate(array('active' => true));
+                $product->update();
+                Hook::exec(
+                    'actionProductActivation',
+                    array('id_product' => (int)$product->id, 'product' => $product, 'activated' => $productActive)
+                );
+            }
 
             return self::walkChildren($this->xml->Цены, array('id_product' => $idProduct));
         } else {
