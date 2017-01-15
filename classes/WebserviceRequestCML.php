@@ -49,6 +49,7 @@ class WebserviceRequestCML
 
     public function fetch($key, $method, $url, $param, $badClassName, $file)
     {
+        // todo предусмотреть ситуацию когда скрипт был прерван и статус в бд progress
         if (!$this->status->isProgress()) {
             if (isset($param['mode']) && $this->status->message && 'import' === $param['mode']) {
                 $this->status->delete();

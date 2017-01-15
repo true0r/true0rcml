@@ -104,7 +104,7 @@ class SpecificPriceImportCML extends ImportCML
                             ->from(Product::$definition['table'])
                             ->where(Product::$definition['primary']." = ".$idProduct)
                     );
-                    if ((0 == $quantity && $productActive) || (0 < $quantity && 0 == $sa && !$productActive)) {
+                    if ((0 == $quantity && $productActive) || (0 < $quantity && !$productActive)) {
                         $product = new Product($idProduct);
                         $productActive = (int) !$productActive;
                         $product->active = $productActive;
