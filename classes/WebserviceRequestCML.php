@@ -21,6 +21,8 @@ class WebserviceRequestCML
         'mode' => array('init', 'checkauth', 'import', 'file', 'query'),
     );
 
+    public $terminateEnable = false;
+
     public static function getInstance()
     {
         if (!isset(self::$instance)) {
@@ -45,12 +47,13 @@ class WebserviceRequestCML
         });
 
         $this->status = ImportCMLStatus::getInstance();
+        $this->terminateEnable = (bool) Configuration::get(WebserviceRequestCML::MODULE_NAME.'-terminateEnable');
     }
 
     public function fetch($key, $method, $url, $param, $badClassName, $file)
     {
         // todo предусмотреть ситуацию когда скрипт был прерван и статус в бд progress
-        if (!$this->status->isProgress()) {
+        if (!$this->terminateEnable || !$this->status->isProgress()) {
             if (isset($param['mode']) && $this->status->message && 'import' === $param['mode']) {
                 $this->status->delete();
             } else {
@@ -215,6 +218,10 @@ class WebserviceRequestCML
 
     public function terminate()
     {
+        if (!$this->terminateEnable) {
+            return;
+        }
+
         ignore_user_abort(true);
 
         $result = $this->getResult();
