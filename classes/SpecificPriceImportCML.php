@@ -93,6 +93,8 @@ class SpecificPriceImportCML extends ImportCML
             // todo управление складами
             // Обработка количества товаров
             $quantity = isset($this->xml->Количество) ? (int) $this->xml->Количество : 0;
+            0 > $quantity && $quantity = 0;
+
             $sa = StockAvailable::getQuantityAvailableByProduct($idProduct);
             if ($quantity != $sa) {
                 StockAvailable::setQuantity($idProduct, 0, $quantity);
