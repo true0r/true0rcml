@@ -59,30 +59,29 @@ class ImageImportCML extends ImportCML
         $ext = pathinfo($filename, PATHINFO_EXTENSION);
 
         $oldPath = $uploadDir.$filename;
-        $productName = $this->targetClass->name[Context::getContext()->language->id];
-        if (!file_exists($oldPath)) {
-            self::setWarning("Файл изображения товара '{$productName}' не загружен");
-            $img->delete();
-            return false;
-        }
-        if (!ImageManager::isCorrectImageFileExt($filename) || !ImageManager::isRealImage($oldPath)) {
-            self::setWarning("Изображение товара '{$productName}' имеет неверный формат");
-            $img->delete();
-            return false;
-        }
+        /** @var Image $targetClass */
+        $targetClass = $this->targetClass;
         $newPath = $img->getPathForCreation().'.'.$img->image_format;
+        $warning = '';
 
+        if (!file_exists($oldPath)) {
+            $warning = "Файл изображения товара '%s' не загружен";
+        } elseif (!ImageManager::isCorrectImageFileExt($filename) || !ImageManager::isRealImage($oldPath)) {
+            $warning = "Изображение товара '%s' имеет неверный формат";
         // AdminImagesController::_regenerateNewImages() работает только с jpg
-        if ($ext != 'jpg') {
+        } elseif ($ext != 'jpg') {
             // Происходит поворот изображений с метаданными об ориентации, которые были перевернуты в другом ПО
             if (!ImageManager::resize($oldPath, $newPath)) {
-                self::setWarning("Не могу изображение товара '{$productName}' преобразовать к нужному формату");
-                $img->delete();
-                return false;
+                $warning = "Не могу изображение товара '%s' преобразовать к нужному формату";
             }
             @unlink($oldPath);
         } elseif (!@copy($oldPath, $newPath)) {
-            self::setWarning("Не могу сохранить изображение товара '{$productName}'");
+            $warning = "Не могу сохранить изображение товара '%s'";
+        }
+
+        if ($warning) {
+            $productName = Product::getProductName($targetClass->id_product);
+            self::setWarning(printf($warning, $productName));
             $img->delete();
             return false;
         }
