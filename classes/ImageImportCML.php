@@ -81,7 +81,7 @@ class ImageImportCML extends ImportCML
                 return false;
             }
             @unlink($oldPath);
-        } elseif (!@rename($oldPath, $newPath)) {
+        } elseif (!@copy($oldPath, $newPath)) {
             self::setWarning("Не могу сохранить изображение товара '{$productName}'");
             $img->delete();
             return false;

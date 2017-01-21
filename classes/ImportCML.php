@@ -320,7 +320,7 @@ class ImportCML
 
     public static function getWarning()
     {
-        return ' Warning: '.implode(', ', self::$warning).';';
+        return self::$warning ? ' Warning: '.implode(', ', self::$warning).';' : '';
     }
     public static function setWarning($warning)
     {
