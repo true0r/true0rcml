@@ -167,7 +167,15 @@ class ProductImportCML extends ImportCML
 
         if (isset($this->xml->Штрихкод)) {
             $upcOrEan13 = (string) $this->xml->Штрихкод;
-            $fields[Tools::strlen($upcOrEan13) == 13 ? 'ean13' : 'upc'] = $upcOrEan13;
+            $maxLengthEan = 13;
+            $length = Tools::strlen($upcOrEan13);
+            if ($length > $maxLengthEan) {
+                self::setWarning(
+                    "Штрихкод не может привышать длину в 13 символов для товар(а|ов) '%S'",
+                    $this->fields['name']);
+            } else {
+                $fields[$length == $maxLengthEan ? 'ean13' : 'upc'] = $upcOrEan13;
+            }
         }
 
         $this->categories = array();
