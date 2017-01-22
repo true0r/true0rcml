@@ -14,6 +14,8 @@ class ProductImportCML extends ImportCML
     public $categories = array();
     public static $prodToUpdSpecPriceRule = array();
 
+    public static $activeToUpd = array();
+
     public function __construct()
     {
         $param = true;
@@ -25,6 +27,8 @@ class ProductImportCML extends ImportCML
     {
         // Обновить правила каталога для товаров у которых сменилась категори(и|я)
         SpecificPriceRule::applyAllRules(array_unique(self::$prodToUpdSpecPriceRule));
+
+        self::activeUpd();
     }
 
     public function save()
@@ -195,5 +199,46 @@ class ProductImportCML extends ImportCML
             'id_category_default' => (int) Configuration::get('PS_HOME_CATEGORY'),
         );
         return array(parent::getDefaultFields(), $fields);
+    }
+
+    public static function addActiveToUpd($idProduct, $active)
+    {
+        self::$activeToUpd[$idProduct] = $active;
+        if (count(self::$activeToUpd) > 1000) {
+           self::activeUpd();
+        }
+    }
+    public static function activeUpd()
+    {
+        if (count(self::$activeToUpd) == 0) {
+            return;
+        }
+
+        $db = DB::getInstance();
+        $productUpdCount = 0;
+        $active = array(0 => array(), 1 => array());
+        $table = Product::$definition['table'];
+        $key = Product::$definition['primary'];
+
+        foreach (self::$activeToUpd as $idProduct => $status) {
+            $active[(int) $status][] = $idProduct;
+        }
+
+        foreach ($active as $status => $idsProduct) {
+            if ($ids = implode(',', $idsProduct)) {
+                $db->update($table, array('active' => $status), "{$key} in ({$ids})");
+                $db->update("{$table}_shop", array('active' => $status), "{$key} in ({$ids})");
+                $productUpdCount += $db->Affected_Rows();
+            }
+        }
+
+        self::$activeToUpd = array();
+
+        if ($productUpdCount) {
+            $product = ImportCML::getInstance('Товар');
+            if ($product->countUpd < $productUpdCount) {
+                $product->countUpd = $productUpdCount;
+            }
+        }
     }
 }

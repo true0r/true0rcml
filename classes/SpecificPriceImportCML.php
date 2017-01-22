@@ -101,34 +101,20 @@ class SpecificPriceImportCML extends ImportCML
             $sa = StockAvailable::getQuantityAvailableByProduct($idProduct);
             if ($quantity != $sa) {
                 StockAvailable::setQuantity($idProduct, 0, $quantity);
-                // При количествах одновременно равных 0 или больше 0, не происходит изменение поля Product::active
-                if (!(0 < $quantity && 0 < $sa)) {
-                    $productActive = Db::getInstance()->getValue(
-                        (new DbQuery())
-                            ->select('active')
-                            ->from(Product::$definition['table'])
-                            ->where(Product::$definition['primary']." = ".$idProduct)
-                    );
-                    if ((0 == $quantity && $productActive) || (0 < $quantity && !$productActive)) {
-                        $product = new Product($idProduct);
-                        $productActive = (int) !$productActive;
-                        $product->active = $productActive;
-                        $product->setFieldsToUpdate(array('active' => true));
-                        $product->update();
-                        Hook::exec(
-                            'actionProductActivation',
-                            array(
-                                'id_product' => (int)$product->id,
-                                'product' => $product,
-                                'activated' => $productActive
-                            )
-                        );
-                    }
-                }
-
                 $productUpd = true;
-            };
-
+            }
+            $productActive = (bool) $quantity;
+            ProductImportCML::addActiveToUpd($idProduct, $productActive);
+            // Для 1000 и более товаров, вызов этого хука обходится слишком дорого
+            //  $product = new Product($idProduct);
+            //  Hook::exec(
+            //      'actionProductActivation',
+            //      array(
+            //          'id_product' => $product->id,
+            //          'product' => $product,
+            //          'activated' => $productActive
+            //      )
+            //  );
             return self::walkChildren($this->xml->Цены, array('id_product' => $idProduct));
         } else {
             if (parent::save()) {
