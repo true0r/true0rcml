@@ -136,7 +136,7 @@ class ProductImportCML extends ImportCML
                 $delFeatureValue = array_diff($oldFeatureValue, $featureValue);
                 if ($newFeatureValue || $delFeatureValue) {
                     $db->delete('feature_product', "id_product = $idProduct");
-                    $db->execute(
+                    $featureValue && $db->execute(
                         "INSERT INTO "._DB_PREFIX_."feature_product (id_feature, id_product, id_feature_value)
                         SELECT id_feature, $idProduct, id_feature_value
                         FROM "._DB_PREFIX_."feature_value
