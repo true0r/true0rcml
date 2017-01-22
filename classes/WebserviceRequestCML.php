@@ -8,8 +8,6 @@ class WebserviceRequestCML
 
     /** @var ImportCMLStatus */
     public $status;
-    /** @var  XMLReader */
-    public $xmlReader;
 
     public $param;
     public $file;

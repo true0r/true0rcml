@@ -131,15 +131,6 @@ class SpecificPriceImportCML extends ImportCML
 
             return self::walkChildren($this->xml->Цены, array('id_product' => $idProduct));
         } else {
-            // retro
-            if (!Validate::isLoadedObject($this->entity)) {
-                DB::getInstance()->delete(
-                    SpecificPrice::$definition['table'],
-                    "id_product = {$this->fields['id_product']} AND id_group = {$this->fields['id_group']}
-                    AND id_shop = 0 AND id_country = 0 AND id_currency = 0"
-                );
-            }
-
             if (parent::save()) {
                 if ($this->fields['id_group'] == $this->defaultGroupPrice) {
                     $idProduct = $this->fields['id_product'];
