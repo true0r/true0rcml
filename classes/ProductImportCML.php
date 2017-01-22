@@ -58,11 +58,11 @@ class ProductImportCML extends ImportCML
                 !$product && $product = new Product($idProduct);
 
                 // deleteCategory|updateCategories делают вызов SpecificPriceRule::applyAllRules(),
-                // что критично для импорта большого числа товаров, стоит сделать вызов applyAllRules для множества
+                // что критично для импорта большого числа товаров, делаю вызов applyAllRules для множества
                 self::$prodToUpdSpecPriceRule[] = $product->id;
                 if ((empty($delCats) || !$product->deleteCategories(true)) && !$product->addToCategories($cats)) {
                     $productName = $product->name[Context::getContext()->language->id];
-                    self::setWarning("Не могу добавить категории (Группы) к товару '{$productName}'");
+                    self::setWarning("Не могу добавить категори(и|ю) (Группы) к товар(у|ам) '%s'", $productName);
                 }
             }
         }
@@ -173,7 +173,7 @@ class ProductImportCML extends ImportCML
                 if ($idCategory = EntityCML::getIdTarget((string)$guid, null, true)) {
                     $categories[] = $idCategory;
                 } else {
-                    self::setWarning("Категория (Группа) c guid '{$guid}' товара не существует");
+                    self::setWarning("Категори(я|ии) (Группа) товар(а|ов) c guid '%s' не существу(ет|ют)", $guid);
                 }
             }
             if (!empty($categories)) {

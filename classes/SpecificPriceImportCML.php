@@ -87,7 +87,10 @@ class SpecificPriceImportCML extends ImportCML
 
         if (isset($this->xml->Цены)) {
             if (!$idProduct = EntityCML::getIdTarget($this->idEntityCML)) {
-                self::setWarning('Не могу выполнить импорт некоторых цен, так как номенклатура отсутствует на сайте');
+                self::setWarning(
+                    "Не могу выполнить импорт цены, для товар(а|ов) с guid '%s' он(и) не импортирован(ы)",
+                    $this->idEntityCML
+                );
                 return false;
             }
             // todo управление складами
@@ -159,7 +162,7 @@ class SpecificPriceImportCML extends ImportCML
 
                         $productUpd = true;
                     }
-
+                    // Вызивать хук только один раз для группы пользователей установленной по умолчанию
                     Hook::exec(
                         'actionAddPriceCML',
                         array(

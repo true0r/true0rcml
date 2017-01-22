@@ -122,7 +122,7 @@ class WebserviceRequestCML
         @ini_set('max_execution_time', '0');
         libxml_use_internal_errors(true);
 
-        $this->status->setProgress('Импорт успешно начат');
+        $this->status->setProgress("Импорт успешно начат. Файл импорта: {$this->param['filename']}");
         $this->terminate();
 
         // OPTIMIZATION: сопоставить скорость работы непосредственно с zip без распаковки
@@ -135,7 +135,7 @@ class WebserviceRequestCML
 //            $this->status->setError('Цены не могут быть импортированны так как отключена функция "Специальные цены"';
 //        }
         $startTime = microtime(true);
-        $timeStep = 20;
+        $timeStep = 30;
         $nextTimeInterval = 0;
 
         try {
@@ -147,7 +147,6 @@ class WebserviceRequestCML
                 if (array_key_exists($name, ImportCML::$mapTarget)
                     && ImportCML::$mapTarget[$name]['needWalk']) {
                     $xmlSimple = new SimpleXMLElement($xmlReader->readOuterXml());
-                    /** @var ImportCML $class */
                     ImportCML::catchBall($name, $xmlSimple);
                     $xmlReader->next();
 
@@ -288,6 +287,10 @@ class WebserviceRequestCML
         }
     }
 
+    /**
+     * @param string $path
+     * @return XMLReader|bool
+     */
     public function getXmlReader($path)
     {
         // Не делаю проверку на валидность схеме XML, так как к примеру в украинской редакции

@@ -13,7 +13,7 @@ class FeatureValueImportCML extends ImportCML
     public function save()
     {
         if (!($status = parent::save())) {
-            self::setWarning("Значение '{$this->fields['value']}' не сохранено");
+            self::setWarning("Значени(е|я) '%s' не сохранен(о|ы)", $this->fields['value']);
         }
         return $status;
     }
@@ -27,7 +27,7 @@ class FeatureValueImportCML extends ImportCML
 
         if (!$idFeatureValue = EntityCML::getIdTarget($value, null, true)) {
             if ((!$idFeature = EntityCML::getIdTarget($guid, null, true))) {
-                self::setWarning("Свойство c guid '{$guid}' товара не существует");
+                self::setWarning("Свойств(о|a) товара c guid '%s' не существу(ет|ют)", $guid);
                 return false;
             }
 

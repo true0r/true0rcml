@@ -149,6 +149,7 @@ class ImportCML
     {
         $exclude = array('Справочник',  'Предложение');
         $stats = '';
+        $time = '';
         $countAllUpd = 0;
         $countAllAdd = 0;
         foreach (self::$mapTarget as $entity => $target) {
@@ -162,7 +163,10 @@ class ImportCML
                 }
             }
         }
-        $time = $startTime ? "Time: ".(int) (microtime(true) - $startTime)." s " : "";
+        if ($startTime) {
+            $dateInterval = (new DateTime())->diff((new DateTime())->setTimestamp((int) $startTime));
+            $time = "Time: {$dateInterval->format('%h h %i m %s s')}";
+        }
         $stats .= "All $countAllAdd/$countAllUpd, Pm: ".(memory_get_peak_usage(true) / 1024 / 1024)." MB $time";
         return $stats;
     }
@@ -177,7 +181,7 @@ class ImportCML
             $linkRewrite = Tools::str2url($this->fields['name']);
             if (!Validate::isLinkRewrite($linkRewrite)) {
                 $linkRewrite = 'friendly-url-auto-generation-failed';
-//           $this->warnings[] = 'URL rewriting failed to auto-generate a friendly URL for: {$this->fields['name']}';
+                self::setWarning("Не удалось сгенерировать ЧПУ для товар(а|ов) '%s'", $this->fields['name']);
             }
             $fields['link_rewrite'] = $linkRewrite;
         }
@@ -318,14 +322,26 @@ class ImportCML
         return false;
     }
 
+    /**
+     * @return string
+     */
     public static function getWarning()
     {
-        return self::$warning ? ' Warning: '.implode(', ', self::$warning).';' : '';
-    }
-    public static function setWarning($warning)
-    {
-        if (!in_array($warning, self::$warning)) {
-            self::$warning[] = $warning;
+        $warning = '';
+        foreach (self::$warning as $message => $entity) {
+            if (count($entity)) {
+                $entity = array_unique($entity);
+                $warning .= sprintf($message, implode(', ', $entity));
+            } else {
+                $warning .= $message;
+            }
+            $warning .= '; ';
         }
+        return $warning ? " Warning: {$warning}" : '';
+    }
+    public static function setWarning($warning, $entity = null)
+    {
+        !array_key_exists($warning, self::$warning) && self::$warning[$warning] = array();
+        $entity && self::$warning[$warning][] = $entity;
     }
 }

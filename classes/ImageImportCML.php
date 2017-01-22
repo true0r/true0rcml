@@ -65,23 +65,23 @@ class ImageImportCML extends ImportCML
         $warning = '';
 
         if (!file_exists($oldPath)) {
-            $warning = "Файл изображения товара '%s' не загружен";
+            $warning = "Файл изображения товар(а|ов) '%s' не загружен(ы)";
         } elseif (!ImageManager::isCorrectImageFileExt($filename) || !ImageManager::isRealImage($oldPath)) {
-            $warning = "Изображение товара '%s' имеет неверный формат";
+            $warning = "Изображение товар(а|ов) '%s' име(ет|ют) неверный формат";
         // AdminImagesController::_regenerateNewImages() работает только с jpg
         } elseif ($ext != 'jpg') {
             // Происходит поворот изображений с метаданными об ориентации, которые были перевернуты в другом ПО
             if (!ImageManager::resize($oldPath, $newPath)) {
-                $warning = "Не могу изображение товара '%s' преобразовать к нужному формату";
+                $warning = "Не могу изображение товар(а|ов) '%s' преобразовать к нужному формату";
             }
             @unlink($oldPath);
         } elseif (!@copy($oldPath, $newPath)) {
-            $warning = "Не могу сохранить изображение товара '%s'";
+            $warning = "Не могу сохранить изображение товар(а|ов) '%s'";
         }
 
         if ($warning) {
             $productName = Product::getProductName($targetClass->id_product);
-            self::setWarning(printf($warning, $productName));
+            self::setWarning($warning, $productName);
             $img->delete();
             return false;
         }
@@ -97,7 +97,10 @@ class ImageImportCML extends ImportCML
         $existingImg = "$existingPath.jpg";
 
         if (!file_exists($existingImg) && !filesize($existingImg)) {
-            self::setWarning("Не могу сгенерировать изображение товара, файл '$existingImg' не существует");
+            self::setWarning(
+                "Не могу сгенерировать изображение товар(а|ов), файл(ы) '%s' не существу(ет|ют)",
+                $existingImg
+            );
         } else {
             foreach ($imageType as $type) {
                 $newImg = $existingPath.'-'.stripcslashes($type['name']).'.'.$img->image_format;
@@ -105,7 +108,7 @@ class ImageImportCML extends ImportCML
                     continue;
                 }
                 if (!ImageManager::resize($existingImg, $newImg, (int) $type['width'], (int) $type['height'])) {
-                    self::setWarning("Ошибка генерации изображения '{$img->id}' для товара '{$productName}'");
+                    $warning = "Ошибка генерации изображени(я|ий) для товар(а|ов) '%s'";
                 } elseif ($generateHightDpiImages) {
                     $newImg = $existingPath.'-'.stripcslashes($type['name']).'2x.'.$img->image_format;
                     if (!ImageManager::resize(
@@ -114,8 +117,12 @@ class ImageImportCML extends ImportCML
                         (int) $type['width'] * 2,
                         (int) $type['height'] * 2
                     )) {
-                        self::setWarning("Ошибка генерации HIGHT_DPI изображения '{$img->id}' товара '{$productName}'");
+                        $warning = "Ошибка генерации HIGHT_DPI изображени(я|ий) для товар(а|ов) '%s'";
                     }
+                }
+                if ($warning) {
+                    !isset($productName) && $productName = Product::getProductName($targetClass->id_product);
+                    self::setWarning($warning, $productName);
                 }
             }
         }
@@ -141,8 +148,7 @@ class ImageImportCML extends ImportCML
                 array('cover' => 1),
                 Image::$definition['primary']." = $idImg"
             ))) {
-            $productName = Product::getProductName($idProduct);
-            self::setWarning("Не могу установить обложку товара '{$productName}'");
+            self::setWarning("Не могу установить обложку для товар(а|ов) '%s'", Product::getProductName($idProduct));
         }
     }
 }

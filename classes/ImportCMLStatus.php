@@ -92,6 +92,9 @@ class ImportCMLStatus
             $this->save();
 
             $msg = str_replace("\n", '; ', $msg);
+            if (self::STATUS_SUCCESS == $status) {
+                $msg = '=== Success === '.$msg;
+            }
             $log && $this->logger->log($msg, self::STATUS_ERROR == $status ? FileLogger::ERROR : FileLogger::INFO);
         }
     }

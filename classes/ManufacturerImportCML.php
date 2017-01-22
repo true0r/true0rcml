@@ -7,7 +7,7 @@ class ManufacturerImportCML extends ImportCML
     public function save()
     {
         if (!($status = parent::save())) {
-            self::setWarning("ТорговаяМарка '{$this->fields['name']}' не сохранена");
+            self::setWarning("ТорговаяМарка '%s' не сохранен(а|ы)", $this->fields['name']);
         }
         return $status;
     }
