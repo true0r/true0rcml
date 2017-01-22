@@ -158,11 +158,11 @@ class WebserviceRequestCML
 
             $xmlReader->close();
 
-            ImportCML::runPostImport();
             $this->status->setSuccess(ImportCML::getStats($startTime).ImportCML::getWarning());
         } catch (Exception $e) {
             $this->status->setError("Импорт не удался из за ошибки : '{$e->getMessage()}'");
         }
+        ImportCML::runPostImport();
     }
 
     public function checkParam()
