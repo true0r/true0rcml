@@ -12,7 +12,7 @@ class FeatureValueImportCML extends ImportCML
 
     public function save()
     {
-        if ($status = parent::save()) {
+        if (!($status = parent::save())) {
             self::setWarning("Значение '{$this->fields['value']}' не сохранено");
         }
         return $status;
