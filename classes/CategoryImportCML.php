@@ -59,4 +59,9 @@ class CategoryImportCML extends ImportCML
         // Ассоциация категории со всемы груапами пользователей
         $this->targetClass->groupBox = $groupBox;
     }
+
+    public function modTargetBeforeUpd()
+    {
+        $this->targetClass->groupBox = $this->getGroups();
+    }
 }
