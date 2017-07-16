@@ -60,8 +60,9 @@ class CategoryImportCML extends ImportCML
         $this->targetClass->groupBox = $groupBox;
     }
 
-    public function modTargetBeforeUpd()
+    public function modTargetBeforeUpd($fieldsToUpdate)
     {
-        $this->targetClass->groupBox = $this->getGroups();
+        parent::modTargetBeforeUpd($fieldsToUpdate);
+        $this->targetClass->groupBox = $this->targetClass->getGroups();
     }
 }
