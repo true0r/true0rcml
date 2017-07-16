@@ -34,7 +34,6 @@ class ImportCMLStatus
 
         $this->logger = new FileLogger(FileLogger::INFO);
         $this->logger->setFilename($path);
-        $this->logger->log('==============================================================='.PHP_EOL, FileLogger::INFO);
         $this->logger->logDebug($_SERVER['QUERY_STRING']);
     }
     public static function getInstance()
